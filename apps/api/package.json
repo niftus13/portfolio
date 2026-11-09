@@ -1,0 +1,21 @@
+{
+  "name": "@portfolio/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "mysql2": "^3.15.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/express": "^5.0.6",
+    "typescript": "^6.0.3",
+    "tsx": "^4.23.15"
+  }
+}
