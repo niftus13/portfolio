@@ -44,6 +44,8 @@ Set `SEED_DEMO_PASSWORD` to a password of 12–128 characters, then run `pnpm db
 
 The seed is a one-time transaction. A rerun leaves existing records and passwords unchanged; it does not reset demo data. Name collisions fail the transaction instead of overwriting existing accounts or organizations. Initial seed and demo reset are separate operations; demo reset is not implemented.
 
+For complete database backups and recovery, see the [operator procedure](../../docs/operations/backup-restore.md).
+
 ## Audit retention
 
 `pnpm audit:cleanup` uses the configured `DB_*` connection to delete authentication and organization audit records strictly older than 30 days, using one UTC cutoff and one transaction for both tables. Records exactly at the cutoff are retained. Run it only against the intended database with an authorized operational account granted the necessary access to both audit tables; the application does not schedule it automatically. Configure a trusted scheduler and inspect its output and exit status. Failure rolls back the transaction and returns a nonzero exit status. This job is separate from demo reset. Test with `pnpm exec vitest run --config vitest.mysql.config.ts tests/integration/mysql/audit-retention.test.ts` using the isolated MySQL environment described in the [integration test instructions](../../tests/integration/README.md).

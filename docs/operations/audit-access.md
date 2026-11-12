@@ -13,4 +13,4 @@ ORDER BY created_at DESC
 LIMIT 100;
 ```
 
-Audit records and queries must not contain credentials, tokens or document contents. Retention cleanup is a separate authorized operation and is not yet implemented.
+Audit records and queries must not contain credentials, tokens or document contents. Retention cleanup is a separate authorized operation described in the [API README](../../apps/api/README.md#audit-retention).
