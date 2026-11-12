@@ -80,7 +80,7 @@ The [membership contract](members-api.md) defines the member and organization-au
 ## Demo and auditing
 
 - Public-demo organizations enforce server-side restrictions on member role changes and removal, password and owner changes, and organization deletion.
-- A trusted daily or manual reset restores only demo data and revokes only demo sessions. It must not alter ordinary organizations, users, or sessions.
+- A trusted daily or manual reset restores demo documents, categories, and history to the existing seed baseline and revokes only demo sessions. It must not alter ordinary organizations, users, or sessions.
 - Auth and organization audit records contain no password, session token, or document body. Successful membership changes and their audit records are atomic; denied-action records must survive the rejected business transaction.
 - A failed success-audit write rolls back its membership change. If a denied-action audit cannot be saved, the action remains denied and the server explicitly reports the audit failure.
 - Record denied authorization and login failures separately from any rolled-back business transaction. When login failure auditing fails, keep the login denied without revealing account existence and explicitly record the audit failure in a log file. Do not send an alert for authentication audit failures.
@@ -94,7 +94,7 @@ The [membership contract](members-api.md) defines the member and organization-au
 - Before reset, detect mixed memberships or ambiguous account types; if any are found, stop without modifying sessions or data and require operator remediation. Protect the preflight and reset from concurrent changes that would invalidate this check.
 - Run at most one demo reset at a time across all demo organizations. Establish a durable gate before reset: reject new writes to the target organization and new sessions for affected demo accounts, then wait for already-running target writes and demo session issuance to finish before changing data.
 - While gated, return `503` for new target writes and for affected demo logins after successful credential validation. Failed login responses must still not disclose whether an account exists. Existing ordinary sessions and ordinary organization data are not changed.
-- Restore the target demo data and revoke all sessions of demo accounts associated with the target, including inactive memberships, in the same DB transaction. If an affected account also belongs to another demo organization, its sessions for that organization are revoked too. A failure rolls back the transaction, retains the gate even after process termination, and is logged and alerted; a trusted operator may safely retry the reset. Release the gate only after a successful reset.
+- Restore the target demo data and revoke all sessions of demo accounts associated with the target, including inactive memberships, in the same DB transaction. If an affected account also belongs to another demo organization, its sessions for that organization are revoked too. A failure rolls back the transaction, retains the gate even after process termination, and is logged without sending an alert; a trusted operator may safely retry the reset. Release the gate only after a successful reset.
 - Reset never deletes or changes existing audit records. Audit retention cleanup remains a separate operation. An operator configures and documents the daily schedule and time zone; trusted manual execution remains available.
 
 ## Database changes

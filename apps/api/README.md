@@ -27,7 +27,7 @@ Trust only the Nuxt proxy addresses, not arbitrary client-provided forwarded hea
 
 Apply migrations before using authentication. Endpoints and error responses are documented in the [authentication contract](../../specs/auth-api.md), [document contract](../../specs/documents-api.md), [recovery contract](../../specs/recovery-api.md), [membership contract](../../specs/members-api.md), and [search contract](../../specs/search-preview.md). See the [authentication audit access procedure](../../docs/operations/audit-access.md).
 
-Expired pre-login states, rate-limit records and sessions are not yet cleaned up automatically; audit retention and safe demo reset also remain future work. Do not expose this MVP as a public demo until these operational requirements are implemented and verified.
+Expired pre-login states, rate-limit records and sessions are not yet cleaned up automatically; safe demo reset also remains future work. Do not expose this MVP as a public demo until these operational requirements are implemented and verified.
 
 ## Health endpoints
 
@@ -43,3 +43,7 @@ With the `DB_*` variables above pointing to the intended existing database, run 
 Set `SEED_DEMO_PASSWORD` to a password of 12–128 characters, then run `pnpm db:seed` to create two demo organizations, role-based demo accounts, and an initial document with its first version. The seed uses independently salted scrypt hashes. Do not commit the password; public deployment requires an appropriate demo password and the remaining demo restrictions and reset policy to be implemented first.
 
 The seed is a one-time transaction. A rerun leaves existing records and passwords unchanged; it does not reset demo data. Name collisions fail the transaction instead of overwriting existing accounts or organizations. Initial seed and demo reset are separate operations; demo reset is not implemented.
+
+## Audit retention
+
+`pnpm audit:cleanup` uses the configured `DB_*` connection to delete authentication and organization audit records strictly older than 30 days, using one UTC cutoff and one transaction for both tables. Records exactly at the cutoff are retained. Run it only against the intended database with an authorized operational account granted the necessary access to both audit tables; the application does not schedule it automatically. Configure a trusted scheduler and inspect its output and exit status. Failure rolls back the transaction and returns a nonzero exit status. This job is separate from demo reset. Test with `pnpm exec vitest run --config vitest.mysql.config.ts tests/integration/mysql/audit-retention.test.ts` using the isolated MySQL environment described in the [integration test instructions](../../tests/integration/README.md).
