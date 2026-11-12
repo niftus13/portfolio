@@ -7,4 +7,5 @@ Store behavior-focused specifications here. Each spec should state the problem, 
 - [Authentication API contract](auth-api.md) — authentication endpoints, proxy and input validation.
 - [Organization and document API contract](documents-api.md) — checkpoint 3 document and version behavior.
 - [Categories and recovery API contract](recovery-api.md) — category, trash, and version restoration behavior.
+- [Membership and audit API contract](members-api.md) — role changes, tenant access, and audit atomicity.
 - [Multi-tenant MVP implementation checklist](multitenant-mvp-checklist.md) — policy, contract, implementation, and verification status.

@@ -10,6 +10,7 @@ export interface Organization extends RowDataPacket {
   slug: string;
   name: string;
   role: Role;
+  is_demo: number;
 }
 
 export interface DocumentRow extends RowDataPacket {
@@ -65,7 +66,7 @@ export class DocumentRepository {
 
   async organizations(userId: string): Promise<Organization[]> {
     const [rows] = await this.pool.execute<Organization[]>(
-      `SELECT t.id, t.slug, t.name, m.role FROM tenants t
+      `SELECT t.id, t.slug, t.name, t.is_demo, m.role FROM tenants t
        JOIN memberships m ON m.tenant_id = t.id
        WHERE m.user_id = ? AND m.status = 'active' ORDER BY t.name, t.id`,
       [userId],
@@ -80,7 +81,7 @@ export class DocumentRepository {
   ): Promise<Organization | undefined> {
     const executor: Executor = connection ?? this.pool;
     const [rows] = await executor.execute<Organization[]>(
-      `SELECT t.id, t.slug, t.name, m.role FROM tenants t
+      `SELECT t.id, t.slug, t.name, t.is_demo, m.role FROM tenants t
        JOIN memberships m ON m.tenant_id = t.id
        WHERE t.slug = ? AND m.user_id = ? AND m.status = 'active'
        ${connection ? "FOR UPDATE" : ""}`,
@@ -335,7 +336,13 @@ export class DocumentRepository {
         tenantId,
         userId,
         action,
-        action.startsWith("category.") ? "category" : "document",
+        action.startsWith("category.")
+          ? "category"
+          : action.startsWith("member.")
+            ? "membership"
+            : action.startsWith("audit.")
+              ? "audit"
+              : "document",
         targetId,
         requestId,
       ],

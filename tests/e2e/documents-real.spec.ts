@@ -11,6 +11,7 @@ test("owner creates and edits a document through the real proxy and keeps a conf
 }) => {
   test.setTimeout(60_000);
   const userId = randomUUID();
+  const memberUserId = randomUUID();
   const tenantId = randomUUID();
   const slug = `browser-${randomUUID()}`;
   const email = `${userId}@browser-test.invalid`;
@@ -33,6 +34,11 @@ test("owner creates and edits a document through the real proxy and keeps a conf
       [userId, email, await hashPassword(password)],
     );
     await connection.execute(
+      `INSERT INTO users (id, email, password_hash, display_name, status, is_demo, created_at, updated_at)
+      VALUES (?, ?, 'unused', 'Browser viewer', 'active', 0, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+      [memberUserId, `${memberUserId}@browser-test.invalid`],
+    );
+    await connection.execute(
       `INSERT INTO tenants (id, slug, name, is_demo, created_at, updated_at)
       VALUES (?, ?, 'Browser organization', 0, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
       [tenantId, slug],
@@ -41,6 +47,11 @@ test("owner creates and edits a document through the real proxy and keeps a conf
       `INSERT INTO memberships (id, tenant_id, user_id, is_demo, role, status, created_at, updated_at)
       VALUES (?, ?, ?, 0, 'owner', 'active', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
       [randomUUID(), tenantId, userId],
+    );
+    await connection.execute(
+      `INSERT INTO memberships (id, tenant_id, user_id, is_demo, role, status, created_at, updated_at)
+      VALUES (?, ?, ?, 0, 'viewer', 'active', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+      [randomUUID(), tenantId, memberUserId],
     );
 
     await page.goto("/login");
@@ -126,6 +137,20 @@ test("owner creates and edits a document through the real proxy and keeps a conf
     await expect(
       page.getByRole("button", { name: "브라우저 문서" }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "멤버 불러오기" }).click();
+    await page.getByLabel("멤버", { exact: true }).selectOption({
+      label: `Browser viewer (${memberUserId}@browser-test.invalid) · viewer · active`,
+    });
+    await page.getByLabel("상태", { exact: true }).selectOption("inactive");
+    await page.getByRole("button", { name: "멤버 저장" }).click();
+    await expect(
+      page.getByText("멤버 상태를 저장했습니다", { exact: false }),
+    ).toBeVisible();
+    const [membershipRows] = await connection.execute<RowDataPacket[]>(
+      "SELECT status FROM memberships WHERE tenant_id = ? AND user_id = ?",
+      [tenantId, memberUserId],
+    );
+    expect(membershipRows).toMatchObject([{ status: "inactive" }]);
   } finally {
     try {
       const preauth = (await context.cookies()).find(
@@ -166,6 +191,9 @@ test("owner creates and edits a document through the real proxy and keeps a conf
         userId,
       ]);
       await connection.execute("DELETE FROM users WHERE id = ?", [userId]);
+      await connection.execute("DELETE FROM users WHERE id = ?", [
+        memberUserId,
+      ]);
       for (const key of [email, "127.0.0.1"]) {
         const hash = createHash("sha256").update(key).digest();
         await connection.execute(

@@ -519,6 +519,7 @@ async function restoreVersion(version: string) {
           </li>
         </ul>
       </section>
+      <MemberManagement v-if="selected && canManage" :slug="selected.slug" />
       <section v-if="selected && canWrite">
         <label for="recovery-category">복원 시 카테고리</label>
         <select

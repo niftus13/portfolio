@@ -16,7 +16,11 @@ export default defineEventHandler(async (event) => {
     /^\/api\/v1\/orgs\/[^/]+\/categories(?:\/[0-9a-f-]{36}(?:\/restore)?)?$/i.test(
       path,
     ) ||
-    /^\/api\/v1\/orgs\/[^/]+\/trash(?:\/[0-9a-f-]{36}\/restore)?$/i.test(path);
+    /^\/api\/v1\/orgs\/[^/]+\/trash(?:\/[0-9a-f-]{36}\/restore)?$/i.test(
+      path,
+    ) ||
+    /^\/api\/v1\/orgs\/[^/]+\/members(?:\/[0-9a-f-]{36})?$/i.test(path) ||
+    /^\/api\/v1\/orgs\/[^/]+\/audit-events$/i.test(path);
   if (!permittedPaths.has(path) && !documentPath) {
     throw createError({ statusCode: 404, statusMessage: "Not Found" });
   }

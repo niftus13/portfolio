@@ -2,8 +2,10 @@ import express, { type ErrorRequestHandler } from "express";
 
 import { createAuthRouter, sendAuthError } from "./routes/auth.js";
 import { createDocumentRouter } from "./routes/documents.js";
+import { createMemberRouter } from "./routes/members.js";
 import { AuthError, type AuthService } from "./services/auth.js";
 import type { DocumentService } from "./services/documents.js";
+import type { MemberService } from "./services/members.js";
 
 export interface AppDependencies {
   checkDatabase: () => Promise<void>;
@@ -14,9 +16,15 @@ export interface AppDependencies {
     trustProxy: string | false;
   };
   documents?: DocumentService;
+  members?: MemberService;
 }
 
-export function createApp({ checkDatabase, auth, documents }: AppDependencies) {
+export function createApp({
+  checkDatabase,
+  auth,
+  documents,
+  members,
+}: AppDependencies) {
   const app = express();
 
   app.disable("x-powered-by");
@@ -62,6 +70,7 @@ export function createApp({ checkDatabase, auth, documents }: AppDependencies) {
     app.use("/api/v1", createAuthRouter(auth.service, auth.secure));
     if (documents)
       app.use("/api/v1", createDocumentRouter(auth.service, documents));
+    if (members) app.use("/api/v1", createMemberRouter(auth.service, members));
   }
   const errorHandler: ErrorRequestHandler = (
     error: unknown,

@@ -6,18 +6,22 @@ import { authConfig, config } from "./config.js";
 import { checkDatabase, pool } from "./database.js";
 import { AuthRepository } from "./repositories/auth.js";
 import { DocumentRepository } from "./repositories/documents.js";
+import { MemberRepository } from "./repositories/members.js";
 import { AuthService } from "./services/auth.js";
 import { DocumentService } from "./services/documents.js";
+import { MemberService } from "./services/members.js";
 
 const auth = authConfig();
 const auditFile = await open(auth.auditFailureLog, "a", 0o600);
 await auditFile.close();
 const service = new AuthService(new AuthRepository(pool), auth.auditFailureLog);
+const documentRepository = new DocumentRepository(pool);
 const server = createServer(
   createApp({
     checkDatabase,
     auth: { ...auth, service },
-    documents: new DocumentService(new DocumentRepository(pool)),
+    documents: new DocumentService(documentRepository),
+    members: new MemberService(documentRepository, new MemberRepository(pool)),
   }),
 );
 

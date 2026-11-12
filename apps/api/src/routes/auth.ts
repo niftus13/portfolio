@@ -14,6 +14,23 @@ export function cookie(request: Request, name: string): string | undefined {
   return matching.length === 1 ? matching[0].slice(name.length + 1) : undefined;
 }
 
+export async function requireUser(
+  service: AuthService,
+  request: Request,
+  write = false,
+): Promise<string> {
+  const sessionToken = cookie(request, sessionCookie);
+  const session = await service.session(sessionToken);
+  if (!session) throw new AuthError(401, "Authentication required");
+  if (write)
+    await service.requireCsrf(
+      sessionToken,
+      undefined,
+      request.get("X-CSRF-Token"),
+    );
+  return session.user.id;
+}
+
 function clientIp(request: Request): string {
   if (!request.ip) throw new Error("Client IP is unavailable");
   return request.ip;

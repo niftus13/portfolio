@@ -15,8 +15,10 @@ import {
   DocumentRepository,
   type DocumentRow,
 } from "../../../apps/api/src/repositories/documents.js";
+import { MemberRepository } from "../../../apps/api/src/repositories/members.js";
 import { AuthService } from "../../../apps/api/src/services/auth.js";
 import { DocumentService } from "../../../apps/api/src/services/documents.js";
+import { MemberService } from "../../../apps/api/src/services/members.js";
 
 const origin = "http://127.0.0.1:3100";
 const namespace = randomBytes(8).toString("hex");
@@ -78,11 +80,30 @@ class FailingRepository extends DocumentRepository {
   }
 }
 
+class FailingMemberRepository extends MemberRepository {
+  failAudit = false;
+  override async audit(
+    connection: PoolConnection,
+    tenantId: string,
+    userId: string,
+    memberId: string,
+  ) {
+    if (this.failAudit) {
+      await connection.execute(
+        "INSERT INTO audit_logs (test_nonexistent_column) VALUES (1)",
+      );
+      return;
+    }
+    return super.audit(connection, tenantId, userId, memberId);
+  }
+}
+
 describe("tenant-scoped document API with real MySQL", () => {
   let pool: Pool;
   let server: Server;
   let base: string;
   let repository: FailingRepository;
+  let memberRepository: FailingMemberRepository;
 
   async function request(
     user: number | null,
@@ -173,6 +194,7 @@ describe("tenant-scoped document API with real MySQL", () => {
       );
     }
     repository = new FailingRepository(pool);
+    memberRepository = new FailingMemberRepository(pool);
     server = createServer(
       createApp({
         checkDatabase: async () => {
@@ -185,6 +207,7 @@ describe("tenant-scoped document API with real MySQL", () => {
           trustProxy: false,
         },
         documents: new DocumentService(repository),
+        members: new MemberService(repository, memberRepository),
       }),
     );
     await new Promise<void>((resolve, reject) => {
@@ -197,6 +220,107 @@ describe("tenant-scoped document API with real MySQL", () => {
     base = `http://127.0.0.1:${address.port}`;
   });
 
+  it("enforces member role transitions and commits successful audits atomically", async () => {
+    const memberPath = `/api/v1/orgs/${slugs[0]}/members`;
+    const newMembership = randomUUID();
+    const [existing] = await pool.execute<RowDataPacket[]>(
+      "SELECT id FROM memberships WHERE tenant_id = ? AND user_id = ?",
+      [tenants[0], users[1]],
+    );
+    const adminId = existing[0].id;
+    await pool.execute(
+      "UPDATE memberships SET role = 'admin' WHERE tenant_id = ? AND id = ?",
+      [tenants[0], adminId],
+    );
+    await pool.execute(
+      `INSERT INTO memberships (id, tenant_id, user_id, is_demo, role, status, deactivated_at, created_at, updated_at)
+         VALUES (?, ?, ?, 0, 'admin', 'inactive', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+      [newMembership, tenants[0], users[2]],
+    );
+    try {
+      expect(
+        (
+          await request(1, `${memberPath}/${newMembership}`, "PATCH", {
+            role: "editor",
+            status: "active",
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await request(1, `${memberPath}/${randomUUID()}`, "PATCH", {
+            role: "viewer",
+            status: "active",
+          })
+        ).status,
+      ).toBe(404);
+      expect(
+        (
+          await request(0, `${memberPath}/${newMembership}`, "PATCH", {
+            role: "editor",
+            status: "active",
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await request(1, `${memberPath}/${newMembership}`, "PATCH", {
+            role: "admin",
+            status: "active",
+          })
+        ).status,
+      ).toBe(403);
+      memberRepository.failAudit = true;
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        expect(
+          (
+            await request(0, `${memberPath}/${newMembership}`, "PATCH", {
+              role: "viewer",
+              status: "inactive",
+            })
+          ).status,
+        ).toBe(500);
+      } finally {
+        memberRepository.failAudit = false;
+        spy.mockRestore();
+      }
+      const [rows] = await pool.execute<RowDataPacket[]>(
+        "SELECT role, status FROM memberships WHERE id = ?",
+        [newMembership],
+      );
+      expect(rows).toMatchObject([{ role: "editor", status: "active" }]);
+      const audit = await (
+        await request(0, `/api/v1/orgs/${slugs[0]}/audit-events`)
+      ).json();
+      expect(
+        audit.events.filter(
+          (event: { targetId: string; success: boolean }) =>
+            event.targetId === newMembership && event.success,
+        ),
+      ).toHaveLength(1);
+      expect(
+        (
+          await request(0, `${memberPath}/${adminId}`, "PATCH", {
+            role: "viewer",
+            status: "active",
+          })
+        ).status,
+      ).toBe(200);
+      expect((await request(1, memberPath)).status).toBe(403);
+      expect(
+        (await request(1, `/api/v1/orgs/${slugs[0]}/audit-events`)).status,
+      ).toBe(403);
+    } finally {
+      await pool.execute(
+        "UPDATE memberships SET role = 'viewer' WHERE id = ?",
+        [adminId],
+      );
+      await pool.execute("DELETE FROM memberships WHERE id = ?", [
+        newMembership,
+      ]);
+    }
+  });
   afterAll(async () => {
     if (server)
       await new Promise<void>((resolve, reject) =>
@@ -229,6 +353,95 @@ describe("tenant-scoped document API with real MySQL", () => {
       await pool.execute("DELETE FROM users WHERE id = ?", [user]);
     }
     await pool.end();
+  });
+
+  it("denies public demo membership changes even to the owner", async () => {
+    const tenantId = randomUUID();
+    const ownerId = randomUUID();
+    const targetId = randomUUID();
+    const ownerSession = randomUUID();
+    const ownerToken = randomBytes(32).toString("hex");
+    const ownerCsrf = randomBytes(32).toString("hex");
+    const memberId = randomUUID();
+    const demoSlug = `demo-${namespace}`;
+    try {
+      for (const id of [ownerId, targetId]) {
+        await pool.execute(
+          `INSERT INTO users (id, email, password_hash, display_name, status, is_demo, created_at, updated_at)
+          VALUES (?, ?, 'unused', 'Demo', 'active', 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+          [id, `${id}@${namespace}.invalid`],
+        );
+      }
+      await pool.execute(
+        `INSERT INTO tenants (id, slug, name, is_demo, created_at, updated_at)
+        VALUES (?, ?, 'Demo', 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+        [tenantId, demoSlug],
+      );
+      for (const [id, userId, role] of [
+        [randomUUID(), ownerId, "owner"],
+        [memberId, targetId, "viewer"],
+      ]) {
+        await pool.execute(
+          `INSERT INTO memberships (id, tenant_id, user_id, is_demo, role, status, created_at, updated_at)
+          VALUES (?, ?, ?, 1, ?, 'active', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+          [id, tenantId, userId, role],
+        );
+      }
+      await pool.execute(
+        `INSERT INTO sessions (id, user_id, token_hash, last_activity_at, expires_at, created_at)
+        VALUES (?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 HOUR, UTC_TIMESTAMP(3))`,
+        [
+          ownerSession,
+          ownerId,
+          createHash("sha256").update(ownerToken).digest(),
+        ],
+      );
+      await pool.execute(
+        `INSERT INTO csrf_states (id, session_id, token, expires_at, created_at)
+        VALUES (?, ?, ?, UTC_TIMESTAMP(3) + INTERVAL 1 HOUR, UTC_TIMESTAMP(3))`,
+        [randomUUID(), ownerSession, ownerCsrf],
+      );
+      const response = await fetch(
+        `${base}/api/v1/orgs/${demoSlug}/members/${memberId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Cookie: `portfolio_session=${ownerToken}`,
+            Origin: origin,
+            "Content-Type": "application/json",
+            "X-CSRF-Token": ownerCsrf,
+          },
+          body: JSON.stringify({ role: "editor", status: "active" }),
+        },
+      );
+      expect(response.status).toBe(403);
+      const [rows] = await pool.execute<RowDataPacket[]>(
+        "SELECT role FROM memberships WHERE id = ?",
+        [memberId],
+      );
+      expect(rows).toMatchObject([{ role: "viewer" }]);
+      const [audits] = await pool.execute<RowDataPacket[]>(
+        "SELECT action, success FROM audit_logs WHERE tenant_id = ? AND target_id = ?",
+        [tenantId, memberId],
+      );
+      expect(audits).toMatchObject([{ action: "member.update", success: 0 }]);
+    } finally {
+      await pool.execute("DELETE FROM audit_logs WHERE tenant_id = ?", [
+        tenantId,
+      ]);
+      await pool.execute("DELETE FROM csrf_states WHERE session_id = ?", [
+        ownerSession,
+      ]);
+      await pool.execute("DELETE FROM sessions WHERE id = ?", [ownerSession]);
+      await pool.execute("DELETE FROM memberships WHERE tenant_id = ?", [
+        tenantId,
+      ]);
+      await pool.execute("DELETE FROM tenants WHERE id = ?", [tenantId]);
+      await pool.execute("DELETE FROM users WHERE id IN (?, ?)", [
+        ownerId,
+        targetId,
+      ]);
+    }
   });
 
   it("enforces authentication, active membership, tenant scoping, role and denial auditing", async () => {

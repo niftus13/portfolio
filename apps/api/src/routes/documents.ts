@@ -3,17 +3,17 @@ import { Router, type Request } from "express";
 import { containsControlCharacters } from "../identity/auth-input.js";
 import { AuthError, type AuthService } from "../services/auth.js";
 import { DocumentService, type DocumentInput } from "../services/documents.js";
-import { cookie } from "./auth.js";
+import { requireUser } from "./auth.js";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const maxCounter = 18446744073709551615n;
 
-function identifier(value: string): string {
+export function identifier(value: string): string {
   if (!uuid.test(value)) throw new AuthError(400, "Invalid input");
   return value;
 }
 
-function slug(value: string): string {
+export function slug(value: string): string {
   if (
     !value ||
     Array.from(value).length > 100 ||
@@ -25,7 +25,7 @@ function slug(value: string): string {
   return value;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -140,16 +140,7 @@ export function createDocumentRouter(
 ) {
   const router = Router();
   async function user(request: Request, write = false): Promise<string> {
-    const sessionToken = cookie(request, "portfolio_session");
-    const session = await auth.session(sessionToken);
-    if (!session) throw new AuthError(401, "Authentication required");
-    if (write)
-      await auth.requireCsrf(
-        sessionToken,
-        undefined,
-        request.get("X-CSRF-Token"),
-      );
-    return session.user.id;
+    return requireUser(auth, request, write);
   }
 
   router.get("/orgs", async (request, response) => {

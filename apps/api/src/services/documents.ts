@@ -8,22 +8,12 @@ import {
   type Organization,
 } from "../repositories/documents.js";
 import { AuthError } from "./auth.js";
+import { Denied, recordDenial } from "./authorization.js";
 
 export interface DocumentInput {
   title?: string;
   contentMd?: string;
   categoryId?: string | null;
-}
-
-class Denied extends AuthError {
-  constructor(
-    readonly tenantId: string,
-    readonly userId: string,
-    readonly action: string,
-    readonly targetId: string | null,
-  ) {
-    super(403, "Forbidden");
-  }
 }
 
 function documentResponse(row: DocumentRow) {
@@ -109,33 +99,7 @@ export class DocumentService {
   }
 
   private async recordDenial<T>(work: () => Promise<T>): Promise<T> {
-    try {
-      return await work();
-    } catch (error) {
-      if (error instanceof Denied) {
-        const requestId = randomUUID();
-        try {
-          await this.repository.denied(
-            error.tenantId,
-            error.userId,
-            error.action,
-            error.targetId,
-            requestId,
-          );
-        } catch (auditError) {
-          console.error("Authorization denial audit failed", {
-            requestId,
-            code:
-              typeof auditError === "object" &&
-              auditError !== null &&
-              "code" in auditError
-                ? auditError.code
-                : "UNKNOWN",
-          });
-        }
-      }
-      throw error;
-    }
+    return recordDenial(this.repository, work);
   }
 
   async list(userId: string, slug: string) {

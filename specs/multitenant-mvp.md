@@ -1,6 +1,6 @@
 # Multi-tenant document MVP
 
-Status: partially implemented. Initial migrations, one-time demo seed, authentication, tenant-scoped documents, categories, trash and version restoration are implemented. Member management, search, demo reset, and their verification remain planned.
+Status: partially implemented. Initial migrations, one-time demo seed, authentication, tenant-scoped documents, categories, trash, version restoration and member management are implemented. Search, Markdown preview, demo reset, and their verification remain planned.
 
 The source is the [multi-tenant MVP document](https://app.notion.com/p/4152d703a2f881b2bbacf96824d986c7). This specification records its acceptance criteria and the explicitly agreed API decisions.
 
@@ -44,7 +44,7 @@ Membership changes take effect on the next request. Reactivation updates the exi
 - An admin may reactivate an inactive editor or viewer as an editor or viewer, but cannot assign the admin role. Owner membership changes are out of scope.
 - Organization member lists are available only to the organization's owner and admin.
 
-The member and organization-audit API uses these paths; request/response fields and error examples still require a detailed contract:
+The [membership contract](members-api.md) defines the member and organization-audit API, including input and error behavior:
 
 | Method | Path                                         | Purpose                                                     |
 | ------ | -------------------------------------------- | ----------------------------------------------------------- |
