@@ -51,11 +51,24 @@ test("owner creates and edits a document through the real proxy and keeps a conf
     await page
       .getByRole("button", { name: "Browser organization (owner)" })
       .click();
+    await expect(
+      page.getByRole("button", { name: "카테고리 추가" }),
+    ).toBeEnabled();
+    await page.getByLabel("카테고리 이름").fill("브라우저 분류");
+    await page.getByRole("button", { name: "카테고리 추가" }).click();
+    await expect(
+      page
+        .getByLabel("관리할 카테고리")
+        .getByRole("option", { name: "브라우저 분류" }),
+    ).toHaveCount(1);
     await expect(page.getByRole("button", { name: "새 문서" })).toBeEnabled();
     await page.getByRole("button", { name: "새 문서" }).focus();
     await page.keyboard.press("Enter");
     await page.getByLabel("제목").fill("브라우저 문서");
     await page.getByLabel("본문 (Markdown 원문)").fill("최초 내용");
+    await page
+      .getByLabel("카테고리", { exact: true })
+      .selectOption({ label: "브라우저 분류" });
     await page.getByRole("button", { name: "저장" }).click();
     await expect(page.getByRole("status")).toContainText("저장했습니다");
     await expect(page.getByText("버전 1 · revision 1")).toBeVisible();
@@ -101,6 +114,18 @@ test("owner creates and edits a document through the real proxy and keeps a conf
       [tenantId],
     );
     expect(rows).toMatchObject([{ content_md: "다른 변경", revision: 3 }]);
+    await page.getByText("버전 1 · create", { exact: false }).click();
+    await page.getByRole("button", { name: "이 버전 복원" }).click();
+    await expect(page.getByText("버전 4 · revision 4")).toBeVisible();
+    await expect(page.getByLabel("본문 (Markdown 원문)")).toHaveValue(
+      "최초 내용",
+    );
+    await page.getByRole("button", { name: "문서 삭제" }).click();
+    await expect(page.getByRole("button", { name: "문서 복구" })).toBeVisible();
+    await page.getByRole("button", { name: "문서 복구" }).click();
+    await expect(
+      page.getByRole("button", { name: "브라우저 문서" }),
+    ).toBeVisible();
   } finally {
     try {
       const preauth = (await context.cookies()).find(
@@ -120,6 +145,9 @@ test("owner creates and edits a document through the real proxy and keeps a conf
         [tenantId],
       );
       await connection.execute("DELETE FROM documents WHERE tenant_id = ?", [
+        tenantId,
+      ]);
+      await connection.execute("DELETE FROM categories WHERE tenant_id = ?", [
         tenantId,
       ]);
       await connection.execute("DELETE FROM memberships WHERE tenant_id = ?", [

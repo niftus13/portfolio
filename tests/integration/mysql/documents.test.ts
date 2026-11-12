@@ -46,7 +46,8 @@ class FailingRepository extends DocumentRepository {
     userId: string,
     document: DocumentRow,
     categoryName: string | null,
-    changeType: "create" | "update",
+    changeType: "create" | "update" | "restore" | "trash_restore",
+    restoredFrom: string | null = null,
   ) {
     if (this.failVersion) {
       await connection.execute(
@@ -61,6 +62,7 @@ class FailingRepository extends DocumentRepository {
       document,
       categoryName,
       changeType,
+      restoredFrom,
     );
   }
 
@@ -116,6 +118,8 @@ describe("tenant-scoped document API with real MySQL", () => {
       database,
       multipleStatements: true,
       timezone: "Z",
+      supportBigNumbers: true,
+      bigNumberStrings: true,
     });
     const connection = await pool.getConnection();
     try {
@@ -423,6 +427,189 @@ describe("tenant-scoped document API with real MySQL", () => {
     });
   });
 
+  it("reserves deleted category names and serializes category deletion with association", async () => {
+    const categoryPath = `/api/v1/orgs/${slugs[0]}/categories`;
+    const created = await request(0, categoryPath, "POST", {
+      name: " Race Category ",
+    });
+    expect(created.status).toBe(201);
+    const { category } = await created.json();
+    expect(
+      (await request(0, categoryPath, "POST", { name: "race category" }))
+        .status,
+    ).toBe(409);
+    expect(
+      (await request(1, `${categoryPath}/${category.id}`, "DELETE")).status,
+    ).toBe(403);
+    const [deletion, association] = await Promise.all([
+      request(0, `${categoryPath}/${category.id}`, "DELETE"),
+      request(0, path(0), "POST", {
+        title: "Category race",
+        contentMd: "",
+        categoryId: category.id,
+      }),
+    ]);
+    expect([
+      [204, 404],
+      [409, 201],
+    ]).toContainEqual([deletion.status, association.status]);
+    if (deletion.status === 409) {
+      const { document } = await association.json();
+      expect(
+        (
+          await request(0, path(0, document.id), "DELETE", {
+            expectedRevision: "1",
+          })
+        ).status,
+      ).toBe(204);
+      expect(
+        (await request(0, `${categoryPath}/${category.id}`, "DELETE")).status,
+      ).toBe(204);
+    }
+    expect(
+      (await request(0, categoryPath, "POST", { name: "RACE CATEGORY" }))
+        .status,
+    ).toBe(409);
+    expect(
+      (await request(0, `${categoryPath}/${category.id}/restore`, "POST"))
+        .status,
+    ).toBe(200);
+  });
+
+  it("preserves version on unchanged trash restore and snapshots category changes", async () => {
+    const categoryPath = `/api/v1/orgs/${slugs[0]}/categories`;
+    const { category } = await (
+      await request(0, categoryPath, "POST", { name: "Trash category" })
+    ).json();
+    const { document } = await (
+      await request(0, path(0), "POST", {
+        title: "Trash",
+        contentMd: "a",
+        categoryId: category.id,
+      })
+    ).json();
+    expect(
+      (
+        await request(1, path(0, document.id), "DELETE", {
+          expectedRevision: "1",
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(0, path(0, document.id), "DELETE", {
+          expectedRevision: "1",
+        })
+      ).status,
+    ).toBe(204);
+    expect((await request(0, `${path(0, document.id)}/versions`)).status).toBe(
+      404,
+    );
+    const trashPath = `/api/v1/orgs/${slugs[0]}/trash/${document.id}/restore`;
+    expect(
+      (await request(0, trashPath, "POST", { expectedRevision: "1" })).status,
+    ).toBe(409);
+    const restored = await (
+      await request(0, trashPath, "POST", { expectedRevision: "2" })
+    ).json();
+    expect(restored.document).toMatchObject({
+      revision: "3",
+      contentVersion: "1",
+      categoryId: category.id,
+    });
+    expect(
+      (
+        await request(0, path(0, document.id), "DELETE", {
+          expectedRevision: "3",
+        })
+      ).status,
+    ).toBe(204);
+    expect(
+      (await request(0, `${categoryPath}/${category.id}`, "DELETE")).status,
+    ).toBe(204);
+    expect(
+      (await request(0, trashPath, "POST", { expectedRevision: "4" })).status,
+    ).toBe(404);
+    repository.failVersion = true;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(
+        (
+          await request(0, trashPath, "POST", {
+            expectedRevision: "4",
+            categoryId: null,
+          })
+        ).status,
+      ).toBe(500);
+      expect((await request(0, path(0, document.id))).status).toBe(404);
+    } finally {
+      repository.failVersion = false;
+      spy.mockRestore();
+    }
+    const changed = await (
+      await request(0, trashPath, "POST", {
+        expectedRevision: "4",
+        categoryId: null,
+      })
+    ).json();
+    expect(changed.document).toMatchObject({
+      revision: "5",
+      contentVersion: "2",
+      categoryId: null,
+    });
+    const history = await (
+      await request(0, `${path(0, document.id)}/versions`)
+    ).json();
+    expect(
+      history.versions.map((item: { changeType: string }) => item.changeType),
+    ).toEqual(["trash_restore", "create"]);
+  });
+
+  it("always creates a snapshot on version restoration and rolls back a failed snapshot", async () => {
+    const { document } = await (
+      await request(0, path(0), "POST", { title: "Restore", contentMd: "same" })
+    ).json();
+    const restore = `${path(0, document.id)}/versions/1/restore`;
+    const result = await (
+      await request(0, restore, "POST", { expectedRevision: "1" })
+    ).json();
+    expect(result.document).toMatchObject({
+      revision: "2",
+      contentVersion: "2",
+      contentMd: "same",
+    });
+    expect(
+      (await request(0, restore, "POST", { expectedRevision: "1" })).status,
+    ).toBe(409);
+    expect(
+      (
+        await request(
+          1,
+          `/api/v1/orgs/${slugs[1]}/documents/${document.id}/versions/1/restore`,
+          "POST",
+          { expectedRevision: "2" },
+        )
+      ).status,
+    ).toBe(404);
+    const [versions] = await pool.execute<RowDataPacket[]>(
+      "SELECT restored_from_version FROM document_versions WHERE tenant_id = ? AND document_id = ? AND version = 2",
+      [tenants[0], document.id],
+    );
+    expect(versions[0].restored_from_version).toBe("1");
+    repository.failVersion = true;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(
+        (await request(0, restore, "POST", { expectedRevision: "2" })).status,
+      ).toBe(500);
+    } finally {
+      repository.failVersion = false;
+      spy.mockRestore();
+    }
+    expect(
+      (await (await request(0, path(0, document.id))).json()).document,
+    ).toEqual(result.document);
+  });
   it("serializes concurrent edits and rolls back document changes if a snapshot fails", async () => {
     const { document } = await (
       await request(0, path(0), "POST", { title: "Race", contentMd: "" })

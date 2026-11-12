@@ -21,12 +21,23 @@ interface Version {
   changeType: string;
   createdAt: string;
 }
+interface Category {
+  id: string;
+  name: string;
+  deleted: boolean;
+}
 
 const organizations = ref<Organization[]>([]);
 const selected = ref<Organization | null>(null);
 const documents = ref<Document[]>([]);
 const current = ref<Document | null>(null);
 const versions = ref<Version[]>([]);
+const categories = ref<Category[]>([]);
+const trashed = ref<Document[]>([]);
+const categoryId = ref("");
+const categoryName = ref("");
+const managedCategory = ref("");
+const recoveryCategory = ref("keep");
 const title = ref("");
 const content = ref("");
 const creating = ref(false);
@@ -37,6 +48,12 @@ const message = ref("");
 const conflict = ref(false);
 const canWrite = computed(
   () => selected.value?.role !== "viewer" && selected.value !== null,
+);
+const canManage = computed(
+  () => selected.value?.role === "owner" || selected.value?.role === "admin",
+);
+const orgBase = computed(
+  () => `/api/v1/orgs/${encodeURIComponent(selected.value?.slug ?? "")}`,
 );
 const base = computed(
   () =>
@@ -91,9 +108,13 @@ async function selectOrganization(organization: Organization) {
   message.value = "";
   busy.value = true;
   try {
-    documents.value = (
-      await $fetch<{ documents: Document[] }>(base.value)
-    ).documents;
+    const [list, categoryList] = await Promise.all([
+      $fetch<{ documents: Document[] }>(base.value),
+      $fetch<{ categories: Category[] }>(`${orgBase.value}/categories`),
+    ]);
+    documents.value = list.documents;
+    categories.value = categoryList.categories;
+    trashed.value = [];
   } catch (error) {
     report(error);
   } finally {
@@ -114,6 +135,7 @@ async function openDocument(id: string) {
     current.value = detail.document;
     title.value = detail.document.title;
     content.value = detail.document.contentMd;
+    categoryId.value = detail.document.categoryId ?? "";
     versions.value = history.versions;
     creating.value = false;
     conflict.value = false;
@@ -128,6 +150,7 @@ function newDocument() {
   current.value = null;
   title.value = "";
   content.value = "";
+  categoryId.value = "";
   versions.value = [];
   creating.value = true;
   conflict.value = false;
@@ -167,7 +190,11 @@ async function save() {
       ? await $fetch<{ document: Document }>(base.value, {
           method: "POST",
           headers: { "X-CSRF-Token": token },
-          body: { title: title.value, contentMd: content.value },
+          body: {
+            title: title.value,
+            contentMd: content.value,
+            categoryId: categoryId.value || null,
+          },
         })
       : await $fetch<{ document: Document }>(
           `${base.value}/${current.value!.id}`,
@@ -177,6 +204,7 @@ async function save() {
             body: {
               title: title.value,
               contentMd: content.value,
+              categoryId: categoryId.value || null,
               expectedRevision: current.value!.revision,
             },
           },
@@ -184,6 +212,7 @@ async function save() {
     current.value = response.document;
     title.value = response.document.title;
     content.value = response.document.contentMd;
+    categoryId.value = response.document.categoryId ?? "";
     creating.value = false;
     conflict.value = false;
     message.value = "저장했습니다.";
@@ -203,6 +232,168 @@ async function save() {
     } else {
       report(error);
     }
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function mutate<T>(
+  path: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body?: Record<string, string | null>,
+): Promise<T> {
+  const token = (await $fetch<{ csrfToken: string }>("/api/v1/csrf-token"))
+    .csrfToken;
+  return $fetch<T>(path, { method, headers: { "X-CSRF-Token": token }, body });
+}
+
+async function manageCategory(
+  action: "create" | "rename" | "delete" | "restore",
+) {
+  if (busy.value) return;
+  busy.value = true;
+  errorMessage.value = "";
+  message.value = "";
+  try {
+    const path = `${orgBase.value}/categories`;
+    if (action === "create")
+      await mutate(path, "POST", { name: categoryName.value });
+    else {
+      if (!managedCategory.value) throw new Error("Select a category");
+      const target = `${path}/${managedCategory.value}`;
+      if (action === "rename")
+        await mutate(target, "PATCH", { name: categoryName.value });
+      if (action === "delete") await mutate(target, "DELETE");
+      if (action === "restore") await mutate(`${target}/restore`, "POST");
+    }
+    categories.value = (
+      await $fetch<{ categories: Category[] }>(path)
+    ).categories;
+    message.value = "카테고리를 변경했습니다.";
+  } catch (error) {
+    errorMessage.value =
+      statusOf(error) === 409
+        ? "이미 사용 중인 이름이거나 활성 문서가 연결된 카테고리입니다."
+        : "카테고리를 변경하지 못했습니다. 선택과 입력값을 확인해 주세요.";
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function loadTrash() {
+  if (busy.value) return;
+  busy.value = true;
+  errorMessage.value = "";
+  try {
+    trashed.value = (
+      await $fetch<{ documents: Document[] }>(`${orgBase.value}/trash`)
+    ).documents;
+  } catch (error) {
+    report(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+function restoreBody(expectedRevision: string): Record<string, string | null> {
+  return recoveryCategory.value === "keep"
+    ? { expectedRevision }
+    : {
+        expectedRevision,
+        categoryId:
+          recoveryCategory.value === "none" ? null : recoveryCategory.value,
+      };
+}
+
+async function deleteDocument() {
+  if (busy.value || !current.value) return;
+  busy.value = true;
+  errorMessage.value = "";
+  try {
+    await mutate(`${base.value}/${current.value.id}`, "DELETE", {
+      expectedRevision: current.value.revision,
+    });
+    current.value = null;
+    documents.value = (
+      await $fetch<{ documents: Document[] }>(base.value)
+    ).documents;
+    trashed.value = (
+      await $fetch<{ documents: Document[] }>(`${orgBase.value}/trash`)
+    ).documents;
+    message.value = "휴지통으로 이동했습니다.";
+  } catch (error) {
+    if (statusOf(error) === 409) {
+      conflict.value = true;
+      errorMessage.value =
+        "다른 변경과 충돌했습니다. 입력한 내용은 보존됩니다.";
+    } else report(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function restoreDocument(document: Document) {
+  if (busy.value) return;
+  busy.value = true;
+  errorMessage.value = "";
+  try {
+    await mutate(
+      `${orgBase.value}/trash/${document.id}/restore`,
+      "POST",
+      restoreBody(document.revision),
+    );
+    documents.value = (
+      await $fetch<{ documents: Document[] }>(base.value)
+    ).documents;
+    trashed.value = (
+      await $fetch<{ documents: Document[] }>(`${orgBase.value}/trash`)
+    ).documents;
+    message.value = "문서를 복구했습니다.";
+  } catch (error) {
+    if (statusOf(error) === 409)
+      errorMessage.value =
+        "문서가 변경되었습니다. 휴지통을 다시 불러와 주세요.";
+    else if (statusOf(error) === 404)
+      errorMessage.value =
+        "문서 또는 카테고리를 찾을 수 없습니다. 활성 카테고리나 없음을 선택해 주세요.";
+    else report(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function restoreVersion(version: string) {
+  if (busy.value || !current.value) return;
+  busy.value = true;
+  errorMessage.value = "";
+  try {
+    const result = await mutate<{ document: Document }>(
+      `${base.value}/${current.value.id}/versions/${version}/restore`,
+      "POST",
+      restoreBody(current.value.revision),
+    );
+    current.value = result.document;
+    title.value = result.document.title;
+    content.value = result.document.contentMd;
+    categoryId.value = result.document.categoryId ?? "";
+    versions.value = (
+      await $fetch<{ versions: Version[] }>(
+        `${base.value}/${result.document.id}/versions`,
+      )
+    ).versions;
+    documents.value = (
+      await $fetch<{ documents: Document[] }>(base.value)
+    ).documents;
+    message.value = "과거 버전을 복원했습니다.";
+  } catch (error) {
+    if (statusOf(error) === 409) {
+      conflict.value = true;
+      errorMessage.value =
+        "다른 변경과 충돌했습니다. 입력한 내용은 보존됩니다.";
+    } else if (statusOf(error) === 404) {
+      errorMessage.value =
+        "문서, 버전 또는 카테고리를 찾을 수 없습니다. 활성 카테고리나 없음을 선택해 주세요.";
+    } else report(error);
   } finally {
     busy.value = false;
   }
@@ -264,6 +455,88 @@ async function save() {
           새 문서
         </button>
       </section>
+      <section v-if="selected && canManage">
+        <h2>카테고리 관리</h2>
+        <label for="category-name">카테고리 이름</label>
+        <input id="category-name" v-model="categoryName" :disabled="busy" />
+        <button
+          type="button"
+          :disabled="busy"
+          @click="manageCategory('create')"
+        >
+          카테고리 추가
+        </button>
+        <label for="managed-category">관리할 카테고리</label>
+        <select
+          id="managed-category"
+          v-model="managedCategory"
+          :disabled="busy"
+        >
+          <option value="">선택</option>
+          <option
+            v-for="category in categories"
+            :key="category.id"
+            :value="category.id"
+          >
+            {{ category.name }}{{ category.deleted ? " (삭제됨)" : "" }}
+          </option>
+        </select>
+        <button
+          type="button"
+          :disabled="busy || !managedCategory"
+          @click="manageCategory('rename')"
+        >
+          이름 변경
+        </button>
+        <button
+          type="button"
+          :disabled="busy || !managedCategory"
+          @click="manageCategory('delete')"
+        >
+          카테고리 삭제
+        </button>
+        <button
+          type="button"
+          :disabled="busy || !managedCategory"
+          @click="manageCategory('restore')"
+        >
+          카테고리 복구
+        </button>
+        <h2>휴지통</h2>
+        <button type="button" :disabled="busy" @click="loadTrash">
+          휴지통 불러오기
+        </button>
+        <ul>
+          <li v-for="document in trashed" :key="document.id">
+            {{ document.title }}
+            <button
+              type="button"
+              :disabled="busy"
+              @click="restoreDocument(document)"
+            >
+              문서 복구
+            </button>
+          </li>
+        </ul>
+      </section>
+      <section v-if="selected && canWrite">
+        <label for="recovery-category">복원 시 카테고리</label>
+        <select
+          id="recovery-category"
+          v-model="recoveryCategory"
+          :disabled="busy"
+        >
+          <option value="keep">기존 카테고리 유지</option>
+          <option value="none">카테고리 없음</option>
+          <option
+            v-for="category in categories.filter((item) => !item.deleted)"
+            :key="category.id"
+            :value="category.id"
+          >
+            {{ category.name }}
+          </option>
+        </select>
+      </section>
       <section v-if="creating || current">
         <h2>{{ creating ? "문서 만들기" : "문서 상세" }}</h2>
         <form @submit.prevent="save">
@@ -281,6 +554,21 @@ async function save() {
             rows="12"
             :disabled="busy || !canWrite"
           />
+          <label for="document-category">카테고리</label>
+          <select
+            id="document-category"
+            v-model="categoryId"
+            :disabled="busy || !canWrite"
+          >
+            <option value="">없음</option>
+            <option
+              v-for="category in categories.filter((item) => !item.deleted)"
+              :key="category.id"
+              :value="category.id"
+            >
+              {{ category.name }}
+            </option>
+          </select>
           <p v-if="current">
             버전 {{ current.contentVersion }} · revision {{ current.revision }}
           </p>
@@ -297,6 +585,14 @@ async function save() {
           </button>
         </form>
         <section v-if="current">
+          <button
+            v-if="canManage"
+            type="button"
+            :disabled="busy"
+            @click="deleteDocument"
+          >
+            문서 삭제
+          </button>
           <details>
             <summary>현재 서버에 저장된 내용</summary>
             <p>{{ current.title }}</p>
@@ -312,6 +608,14 @@ async function save() {
                 </summary>
                 <p>{{ version.title }}</p>
                 <pre>{{ version.contentMd }}</pre>
+                <button
+                  v-if="canWrite"
+                  type="button"
+                  :disabled="busy"
+                  @click="restoreVersion(version.version)"
+                >
+                  이 버전 복원
+                </button>
               </details>
             </li>
           </ol>

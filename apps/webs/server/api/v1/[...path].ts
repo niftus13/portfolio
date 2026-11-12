@@ -10,9 +10,13 @@ export default defineEventHandler(async (event) => {
   const path = getRequestURL(event).pathname;
   const documentPath =
     path === "/api/v1/orgs" ||
-    /^\/api\/v1\/orgs\/[^/]+\/documents(?:\/[0-9a-f-]{36}(?:\/versions)?)?$/i.test(
+    /^\/api\/v1\/orgs\/[^/]+\/documents(?:\/[0-9a-f-]{36}(?:\/versions(?:\/[0-9]+\/restore)?)?)?$/i.test(
       path,
-    );
+    ) ||
+    /^\/api\/v1\/orgs\/[^/]+\/categories(?:\/[0-9a-f-]{36}(?:\/restore)?)?$/i.test(
+      path,
+    ) ||
+    /^\/api\/v1\/orgs\/[^/]+\/trash(?:\/[0-9a-f-]{36}\/restore)?$/i.test(path);
   if (!permittedPaths.has(path) && !documentPath) {
     throw createError({ statusCode: 404, statusMessage: "Not Found" });
   }

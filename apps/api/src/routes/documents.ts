@@ -29,6 +29,57 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function revision(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !/^[1-9][0-9]{0,19}$/.test(value) ||
+    BigInt(value) > maxCounter
+  ) {
+    throw new AuthError(400, "Invalid input");
+  }
+  return value;
+}
+
+function restoreInput(
+  value: unknown,
+  allowCategory: boolean,
+): { expectedRevision: string; categoryId?: string | null } {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).some(
+      (key) =>
+        key !== "expectedRevision" && !(allowCategory && key === "categoryId"),
+    )
+  ) {
+    throw new AuthError(400, "Invalid input");
+  }
+  const expectedRevision = revision(value.expectedRevision);
+  if (!("categoryId" in value)) return { expectedRevision };
+  if (
+    value.categoryId !== null &&
+    (typeof value.categoryId !== "string" || !uuid.test(value.categoryId))
+  ) {
+    throw new AuthError(400, "Invalid input");
+  }
+  return { expectedRevision, categoryId: value.categoryId };
+}
+
+function categoryInput(value: unknown): string {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).some((key) => key !== "name") ||
+    typeof value.name !== "string" ||
+    /[\uD800-\uDFFF]/u.test(value.name) ||
+    containsControlCharacters(value.name)
+  ) {
+    throw new AuthError(400, "Invalid input");
+  }
+  const name = value.name.trim();
+  if (!name || Array.from(name).length > 100)
+    throw new AuthError(400, "Invalid input");
+  return name;
+}
+
 function input(
   value: unknown,
   update: boolean,
@@ -162,5 +213,104 @@ export function createDocumentRouter(
       ),
     });
   });
+  router.get("/orgs/:slug/categories", async (request, response) => {
+    const userId = await user(request);
+    response.json({
+      categories: await documents.categories(userId, slug(request.params.slug)),
+    });
+  });
+  router.post("/orgs/:slug/categories", async (request, response) => {
+    const userId = await user(request, true);
+    response.status(201).json({
+      category: await documents.createCategory(
+        userId,
+        slug(request.params.slug),
+        categoryInput(request.body),
+      ),
+    });
+  });
+  router.patch("/orgs/:slug/categories/:id", async (request, response) => {
+    const userId = await user(request, true);
+    response.json({
+      category: await documents.changeCategory(
+        userId,
+        slug(request.params.slug),
+        identifier(request.params.id),
+        "rename",
+        categoryInput(request.body),
+      ),
+    });
+  });
+  router.delete("/orgs/:slug/categories/:id", async (request, response) => {
+    const userId = await user(request, true);
+    await documents.changeCategory(
+      userId,
+      slug(request.params.slug),
+      identifier(request.params.id),
+      "delete",
+    );
+    response.status(204).end();
+  });
+  router.post(
+    "/orgs/:slug/categories/:id/restore",
+    async (request, response) => {
+      const userId = await user(request, true);
+      response.json({
+        category: await documents.changeCategory(
+          userId,
+          slug(request.params.slug),
+          identifier(request.params.id),
+          "restore",
+        ),
+      });
+    },
+  );
+  router.delete("/orgs/:slug/documents/:id", async (request, response) => {
+    const userId = await user(request, true);
+    const data = restoreInput(request.body, false);
+    await documents.delete(
+      userId,
+      slug(request.params.slug),
+      identifier(request.params.id),
+      data.expectedRevision,
+    );
+    response.status(204).end();
+  });
+  router.get("/orgs/:slug/trash", async (request, response) => {
+    const userId = await user(request);
+    response.json({
+      documents: await documents.trash(userId, slug(request.params.slug)),
+    });
+  });
+  router.post("/orgs/:slug/trash/:id/restore", async (request, response) => {
+    const userId = await user(request, true);
+    const data = restoreInput(request.body, true);
+    response.json({
+      document: await documents.restoreTrash(
+        userId,
+        slug(request.params.slug),
+        identifier(request.params.id),
+        data.expectedRevision,
+        data.categoryId,
+      ),
+    });
+  });
+  router.post(
+    "/orgs/:slug/documents/:id/versions/:version/restore",
+    async (request, response) => {
+      const userId = await user(request, true);
+      const data = restoreInput(request.body, true);
+      response.json({
+        document: await documents.restoreVersion(
+          userId,
+          slug(request.params.slug),
+          identifier(request.params.id),
+          revision(request.params.version),
+          data.expectedRevision,
+          data.categoryId,
+        ),
+      });
+    },
+  );
   return router;
 }

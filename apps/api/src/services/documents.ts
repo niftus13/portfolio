@@ -41,6 +41,7 @@ function documentResponse(row: DocumentRow) {
 
 const notFound = () => new AuthError(404, "Not found");
 const maxCounter = "18446744073709551615";
+const isDeleted = (value: number | string) => value === 1 || value === "1";
 
 export class DocumentService {
   constructor(private readonly repository: DocumentRepository) {}
@@ -73,8 +74,14 @@ export class DocumentService {
     tenantId: string,
     id: string,
     connection?: PoolConnection,
+    deleted = false,
   ) {
-    const document = await this.repository.document(tenantId, id, connection);
+    const document = await this.repository.document(
+      tenantId,
+      id,
+      connection,
+      deleted,
+    );
     if (!document) throw notFound();
     return document;
   }
@@ -86,6 +93,17 @@ export class DocumentService {
     targetId: string | null,
   ) {
     if (organization.role === "viewer") {
+      throw new Denied(organization.id, userId, action, targetId);
+    }
+  }
+
+  private authorizeManager(
+    organization: Organization,
+    userId: string,
+    action: string,
+    targetId: string | null,
+  ) {
+    if (organization.role !== "owner" && organization.role !== "admin") {
       throw new Denied(organization.id, userId, action, targetId);
     }
   }
@@ -249,6 +267,247 @@ export class DocumentService {
           "update",
         );
         return documentResponse(updated);
+      }),
+    );
+  }
+
+  async categories(userId: string, slug: string) {
+    const organization = await this.organization(userId, slug);
+    return (await this.repository.categories(organization.id)).map((row) => ({
+      id: row.id,
+      name: row.name,
+      deleted: isDeleted(row.deleted),
+    }));
+  }
+
+  private async categoryMutation<T>(work: () => Promise<T>): Promise<T> {
+    try {
+      return await this.recordDenial(work);
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ER_DUP_ENTRY" &&
+        "message" in error &&
+        typeof error.message === "string" &&
+        error.message.includes("uq_categories_tenant_name_key")
+      ) {
+        throw new AuthError(409, "Category name already reserved");
+      }
+      throw error;
+    }
+  }
+
+  async createCategory(userId: string, slug: string, name: string) {
+    return this.categoryMutation(() =>
+      this.repository.transaction(async (connection) => {
+        const organization = await this.organization(userId, slug, connection);
+        this.authorizeManager(organization, userId, "category.create", null);
+        const id = randomUUID();
+        const key = name.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+        await this.repository.createCategory(
+          connection,
+          organization.id,
+          id,
+          name,
+          key,
+        );
+        return { id, name, deleted: false };
+      }),
+    );
+  }
+
+  async changeCategory(
+    userId: string,
+    slug: string,
+    id: string,
+    action: "rename" | "delete" | "restore",
+    name?: string,
+  ) {
+    return this.categoryMutation(() =>
+      this.repository.transaction(async (connection) => {
+        const organization = await this.organization(userId, slug, connection);
+        const category = await this.repository.category(
+          connection,
+          organization.id,
+          id,
+        );
+        if (!category || isDeleted(category.deleted) !== (action === "restore"))
+          throw notFound();
+        this.authorizeManager(organization, userId, `category.${action}`, id);
+        if (action === "rename") {
+          if (name === undefined)
+            throw new Error("Missing validated category name");
+          const key = name.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+          await this.repository.renameCategory(
+            connection,
+            organization.id,
+            id,
+            name,
+            key,
+          );
+          return { id, name, deleted: false };
+        }
+        if (
+          action === "delete" &&
+          (await this.repository.categoryInUse(connection, organization.id, id))
+        ) {
+          throw new AuthError(409, "Category is in use");
+        }
+        await this.repository.setCategoryDeleted(
+          connection,
+          organization.id,
+          id,
+          action === "delete",
+        );
+        return { id, name: category.name, deleted: action === "delete" };
+      }),
+    );
+  }
+
+  async trash(userId: string, slug: string) {
+    return this.recordDenial(async () => {
+      const organization = await this.organization(userId, slug);
+      this.authorizeManager(organization, userId, "trash.list", null);
+      return (await this.repository.trash(organization.id)).map(
+        documentResponse,
+      );
+    });
+  }
+
+  private checkRevision(
+    document: DocumentRow,
+    expectedRevision: string,
+    contentChange: boolean,
+  ) {
+    if (document.revision !== expectedRevision)
+      throw new AuthError(409, "Revision conflict");
+    if (
+      document.revision === maxCounter ||
+      (contentChange && document.content_version === maxCounter)
+    ) {
+      throw new AuthError(409, "Revision limit reached");
+    }
+  }
+
+  async delete(
+    userId: string,
+    slug: string,
+    id: string,
+    expectedRevision: string,
+  ) {
+    return this.recordDenial(() =>
+      this.repository.transaction(async (connection) => {
+        const organization = await this.organization(userId, slug, connection);
+        const document = await this.document(organization.id, id, connection);
+        this.authorizeManager(organization, userId, "document.delete", id);
+        this.checkRevision(document, expectedRevision, false);
+        await this.repository.deleteDocument(
+          connection,
+          organization.id,
+          id,
+          userId,
+        );
+      }),
+    );
+  }
+
+  async restoreTrash(
+    userId: string,
+    slug: string,
+    id: string,
+    expectedRevision: string,
+    categoryId?: string | null,
+  ) {
+    return this.recordDenial(() =>
+      this.repository.transaction(async (connection) => {
+        const organization = await this.organization(userId, slug, connection);
+        const document = await this.document(
+          organization.id,
+          id,
+          connection,
+          true,
+        );
+        this.authorizeManager(organization, userId, "trash.restore", id);
+        const nextCategory =
+          categoryId === undefined ? document.category_id : categoryId;
+        const changed = nextCategory !== document.category_id;
+        this.checkRevision(document, expectedRevision, changed);
+        const categoryName = await this.category(
+          connection,
+          organization.id,
+          nextCategory,
+        );
+        await this.repository.restoreTrash(
+          connection,
+          organization.id,
+          id,
+          nextCategory,
+          changed,
+        );
+        const restored = await this.document(organization.id, id, connection);
+        if (changed)
+          await this.repository.insertVersion(
+            connection,
+            organization.id,
+            userId,
+            restored,
+            categoryName,
+            "trash_restore",
+          );
+        return documentResponse(restored);
+      }),
+    );
+  }
+
+  async restoreVersion(
+    userId: string,
+    slug: string,
+    id: string,
+    version: string,
+    expectedRevision: string,
+    categoryId?: string | null,
+  ) {
+    return this.recordDenial(() =>
+      this.repository.transaction(async (connection) => {
+        const organization = await this.organization(userId, slug, connection);
+        const document = await this.document(organization.id, id, connection);
+        const original = await this.repository.version(
+          connection,
+          organization.id,
+          id,
+          version,
+        );
+        if (!original) throw notFound();
+        this.authorize(organization, userId, "document.restore", id);
+        this.checkRevision(document, expectedRevision, true);
+        const nextCategory =
+          categoryId === undefined ? original.category_id : categoryId;
+        const categoryName = await this.category(
+          connection,
+          organization.id,
+          nextCategory,
+        );
+        await this.repository.updateDocument(
+          connection,
+          organization.id,
+          id,
+          original.title,
+          original.content_md,
+          nextCategory,
+        );
+        const restored = await this.document(organization.id, id, connection);
+        await this.repository.insertVersion(
+          connection,
+          organization.id,
+          userId,
+          restored,
+          categoryName,
+          "restore",
+          version,
+        );
+        return documentResponse(restored);
       }),
     );
   }
