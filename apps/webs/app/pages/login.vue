@@ -135,7 +135,9 @@ async function logout() {
       <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
       <section v-if="user">
         <h2>{{ user.displayName }}님, 환영합니다</h2>
-        <p v-if="hasOrganizations">조직 선택 기능을 준비하고 있습니다.</p>
+        <p v-if="hasOrganizations">
+          <NuxtLink to="/documents">조직과 문서 보기</NuxtLink>
+        </p>
         <p v-else>
           소속된 조직이 없습니다. 문서 기능을 체험하려면 데모 계정을 이용해
           주세요.

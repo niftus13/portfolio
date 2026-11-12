@@ -6,7 +6,7 @@ import { AuthError, AuthService } from "../services/auth.js";
 const sessionCookie = "portfolio_session";
 const preauthCookie = "portfolio_preauth";
 
-function cookie(request: Request, name: string): string | undefined {
+export function cookie(request: Request, name: string): string | undefined {
   const entries = (request.headers.cookie ?? "")
     .split(";")
     .map((part) => part.trim());
@@ -19,11 +19,7 @@ function clientIp(request: Request): string {
   return request.ip;
 }
 
-export function createAuthRouter(
-  service: AuthService,
-  allowedOrigin: string,
-  secure: boolean,
-) {
+export function createAuthRouter(service: AuthService, secure: boolean) {
   const router = Router();
   const cookieOptions = {
     httpOnly: true,
@@ -31,15 +27,6 @@ export function createAuthRouter(
     secure,
     path: "/",
   };
-
-  router.use((request, response, next) => {
-    response.set("Cache-Control", "no-store");
-    if (request.method !== "GET" && request.headers.origin !== allowedOrigin) {
-      next(new AuthError(403, "Invalid Origin"));
-      return;
-    }
-    next();
-  });
 
   router.get("/csrf-token", async (request, response) => {
     const result = await service.csrf(

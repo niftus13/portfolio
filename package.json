@@ -23,7 +23,8 @@
     "test:integration": "vitest run tests/integration",
     "test:integration:mysql": "vitest run --config vitest.mysql.config.ts",
     "test:e2e": "playwright test",
-    "test:e2e:auth": "playwright test --config playwright.auth.config.ts",
+    "test:e2e:auth": "playwright test --config playwright.auth.config.ts tests/e2e/auth-real.spec.ts",
+    "test:e2e:documents": "playwright test --config playwright.auth.config.ts tests/e2e/documents-real.spec.ts",
     "eval": "vitest run evals/cases",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm eval"
   },

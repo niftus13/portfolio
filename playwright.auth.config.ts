@@ -18,7 +18,7 @@ if (!isAbsolute(log)) throw new Error("AUTH_E2E_LOG must be an absolute path");
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: "auth-real.spec.ts",
+  testMatch: ["auth-real.spec.ts", "documents-real.spec.ts"],
   globalSetup: "./tests/e2e/auth.setup.ts",
   fullyParallel: false,
   workers: 1,

@@ -2,7 +2,7 @@
 
 This is a pnpm workspace organized around a verification loop: define expected behavior, implement it, then verify it with tests and evaluations. The API, web app, and MySQL database can run together with Docker Compose.
 
-The planned MVP is an organization-scoped workspace for sharing operational guides and FAQs, with tenant isolation, role-based access, and document history. Signup and session-based login are implemented; organization and document features remain planned. See the [MVP specification](specs/multitenant-mvp.md) and [implementation checklist](specs/multitenant-mvp-checklist.md).
+The MVP is an organization-scoped workspace for sharing operational guides and FAQs, with tenant isolation, role-based access, and document history. Signup, session-based login, organization selection and core document creation, reading and editing are implemented. Category management, trash, search and safe public-demo operations remain planned. See the [MVP specification](specs/multitenant-mvp.md) and [implementation checklist](specs/multitenant-mvp-checklist.md).
 
 ## Repository layout
 
@@ -63,9 +63,10 @@ The verification commands are:
 | `pnpm eval`                   | Run `*.eval.test.ts` cases in `evals/cases/`             |
 | `pnpm test:e2e`               | Run Playwright tests in `tests/e2e/`                     |
 | `pnpm test:e2e:auth`          | Run authentication E2E with the real API and MySQL       |
+| `pnpm test:e2e:documents`     | Run document E2E with the real API and MySQL             |
 | `pnpm verify`                 | Run formatting, lint, type-check, tests, and evaluations |
 
-E2E tests are separate from `pnpm verify`: `pnpm test:e2e` uses a health fixture, while `pnpm test:e2e:auth` uses the real API and isolated MySQL. See [browser test setup](tests/e2e/README.md) for ports, isolation, browser dependencies and required environment variables.
+E2E tests are separate from `pnpm verify`: `pnpm test:e2e` uses a health fixture, while `pnpm test:e2e:auth` and `pnpm test:e2e:documents` use the real API and isolated MySQL. See [browser test setup](tests/e2e/README.md) for ports, isolation, browser dependencies and required environment variables.
 
 Database setup commands are `pnpm db:migrate` and `pnpm db:seed`; see the [API database setup](apps/api/README.md). Real-MySQL integration tests use a separate, explicitly configured test database as described in the [integration test README](tests/integration/README.md) and do not run as part of `pnpm verify`.
 

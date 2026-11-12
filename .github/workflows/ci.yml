@@ -40,3 +40,12 @@ jobs:
           TEST_DB_USER: portfolio_test
           TEST_DB_PASSWORD: ci-only-test-password
           TEST_DB_NAME: portfolio_test_ci
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e:documents
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: "3306"
+          TEST_DB_USER: portfolio_test
+          TEST_DB_PASSWORD: ci-only-test-password
+          TEST_DB_NAME: portfolio_test_ci
+          AUTH_E2E_LOG: /tmp/portfolio-ci-auth-audit.log

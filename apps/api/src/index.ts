@@ -5,14 +5,20 @@ import { createApp } from "./app.js";
 import { authConfig, config } from "./config.js";
 import { checkDatabase, pool } from "./database.js";
 import { AuthRepository } from "./repositories/auth.js";
+import { DocumentRepository } from "./repositories/documents.js";
 import { AuthService } from "./services/auth.js";
+import { DocumentService } from "./services/documents.js";
 
 const auth = authConfig();
 const auditFile = await open(auth.auditFailureLog, "a", 0o600);
 await auditFile.close();
 const service = new AuthService(new AuthRepository(pool), auth.auditFailureLog);
 const server = createServer(
-  createApp({ checkDatabase, auth: { ...auth, service } }),
+  createApp({
+    checkDatabase,
+    auth: { ...auth, service },
+    documents: new DocumentService(new DocumentRepository(pool)),
+  }),
 );
 
 server.listen(config.port, config.host, () => {

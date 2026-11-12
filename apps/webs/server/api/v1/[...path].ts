@@ -8,7 +8,12 @@ const permittedPaths = new Set([
 
 export default defineEventHandler(async (event) => {
   const path = getRequestURL(event).pathname;
-  if (!permittedPaths.has(path)) {
+  const documentPath =
+    path === "/api/v1/orgs" ||
+    /^\/api\/v1\/orgs\/[^/]+\/documents(?:\/[0-9a-f-]{36}(?:\/versions)?)?$/i.test(
+      path,
+    );
+  if (!permittedPaths.has(path) && !documentPath) {
     throw createError({ statusCode: 404, statusMessage: "Not Found" });
   }
   const ip = getRequestIP(event) ?? (import.meta.dev ? "127.0.0.1" : undefined);

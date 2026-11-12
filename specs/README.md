@@ -5,4 +5,5 @@ Store behavior-focused specifications here. Each spec should state the problem, 
 - [Service bootstrap and health](service-bootstrap.md)
 - [Multi-tenant document MVP](multitenant-mvp.md) — database foundation started; product features planned.
 - [Authentication API contract](auth-api.md) — authentication endpoints, proxy and input validation.
+- [Organization and document API contract](documents-api.md) — checkpoint 3 document and version behavior.
 - [Multi-tenant MVP implementation checklist](multitenant-mvp-checklist.md) — policy, contract, implementation, and verification status.

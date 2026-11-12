@@ -1,7 +1,9 @@
 import express, { type ErrorRequestHandler } from "express";
 
 import { createAuthRouter, sendAuthError } from "./routes/auth.js";
-import type { AuthService } from "./services/auth.js";
+import { createDocumentRouter } from "./routes/documents.js";
+import { AuthError, type AuthService } from "./services/auth.js";
+import type { DocumentService } from "./services/documents.js";
 
 export interface AppDependencies {
   checkDatabase: () => Promise<void>;
@@ -11,9 +13,10 @@ export interface AppDependencies {
     secure: boolean;
     trustProxy: string | false;
   };
+  documents?: DocumentService;
 }
 
-export function createApp({ checkDatabase, auth }: AppDependencies) {
+export function createApp({ checkDatabase, auth, documents }: AppDependencies) {
   const app = express();
 
   app.disable("x-powered-by");
@@ -46,10 +49,19 @@ export function createApp({ checkDatabase, auth }: AppDependencies) {
   });
 
   if (auth) {
-    app.use(
-      "/api/v1",
-      createAuthRouter(auth.service, auth.allowedOrigin, auth.secure),
-    );
+    app.use("/api/v1", (request, _response, next) => {
+      if (
+        request.method !== "GET" &&
+        request.headers.origin !== auth.allowedOrigin
+      ) {
+        next(new AuthError(403, "Invalid Origin"));
+        return;
+      }
+      next();
+    });
+    app.use("/api/v1", createAuthRouter(auth.service, auth.secure));
+    if (documents)
+      app.use("/api/v1", createDocumentRouter(auth.service, documents));
   }
   const errorHandler: ErrorRequestHandler = (
     error: unknown,

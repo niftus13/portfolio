@@ -13,7 +13,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function containsControlCharacters(value: string): boolean {
+export function containsControlCharacters(value: string): boolean {
   return Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
     return code < 32 || code === 127;
