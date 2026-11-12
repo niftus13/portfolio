@@ -23,4 +23,4 @@ Set `HOST=0.0.0.0` when the API must be reachable outside the local process, suc
 - `GET /health` reports that the HTTP process is alive.
 - `GET /health/ready` executes `SELECT 1` against MySQL and returns `503` while the database is unavailable.
 
-Run `pnpm --filter @portfolio/api build` to compile the API or `pnpm --filter @portfolio/api typecheck` to type-check it.
+Run `pnpm --filter @portfolio/api build` to compile the API into `dist/`, then `pnpm --filter @portfolio/api start` to run it with the database environment above. Run `pnpm --filter @portfolio/api typecheck` to type-check without emitting files.

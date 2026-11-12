@@ -1,9 +1,20 @@
 ---
 description: "백엔드 API, 데이터베이스, 인증 및 서비스 로직을 구현하거나 수정할 때 적용한다."
-applyTo: "apps/api/**/*.ts"
+applyTo: "apps/api/**/*.{ts,sql}"
 ---
 
 # 백엔드 개발 지침
+
+## 디렉토리별 세부 지침
+
+- `src/routes/`, `src/controllers/`, `src/middleware/`: [HTTP 경계](backend-http.instructions.md)
+- `src/services/`: [서비스](backend-service.instructions.md)
+- `src/repositories/`: [repository](backend-repository.instructions.md)
+- `migrations/`: [MySQL migration](database-migrations.instructions.md)
+- 루트 `scripts/`: [운영 스크립트](operational-scripts.instructions.md)
+- 루트 `specs/`: [명세와 API 계약](specifications.instructions.md)
+
+경로는 `apps/api/` 기준이며 필요한 계층만 생성한다. 기존 도메인 helper는 관련 작업 없이 이동하지 않는다. 구조 결정과 현재 구현 상태는 [디렉토리 결정 기록](../../docs/decisions/002-implementation-directory-layout.md)을 따른다.
 
 ## 설계
 
@@ -14,6 +25,7 @@ applyTo: "apps/api/**/*.ts"
 
 ## API 입력과 출력
 
+- 기능 정책과 API 계약은 `specs/`를 먼저 확인하고, 확정되지 않은 동작은 임의로 결정하지 않는다.
 - params, query, body를 신뢰 경계에서 검증한다.
 - 인증 및 권한 검사를 수행한 뒤 보호된 작업을 실행한다.
 - API 응답과 오류는 프로젝트의 공통 계약을 따른다.
@@ -30,6 +42,8 @@ applyTo: "apps/api/**/*.ts"
 ## 데이터 무결성
 
 - 함께 성공하거나 실패해야 하는 DB 변경은 트랜잭션으로 처리한다.
+- 문서 생성 시 최초 이력을 함께 저장하고, 수정 시 revision 검사와 이력 저장을 해당 기능과 함께 구현한다.
+- 성공한 멤버 변경과 감사 기록은 함께 커밋한다. 권한 거부·로그인 실패 기록은 롤백되는 업무 트랜잭션과 분리하고 인증 성공·로그아웃은 확정된 정책을 따른다.
 - 동시 요청과 중복 요청이 데이터에 미치는 영향을 검토한다.
 - 스키마 변경은 프로젝트의 migration 정책을 따른다.
 - 기존 데이터가 있는 환경에 적용 가능한지 검토한다.

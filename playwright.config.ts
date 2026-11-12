@@ -18,12 +18,12 @@ export default defineConfig({
     {
       command: "node tests/e2e/mock-api.mjs",
       url: "http://127.0.0.1:4001/health/ready",
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
     },
     {
       command: "pnpm --filter @portfolio/webs dev",
       url: "http://127.0.0.1:3000",
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       env: {
         HOST: "127.0.0.1",
         NUXT_API_INTERNAL_URL: "http://127.0.0.1:4001",

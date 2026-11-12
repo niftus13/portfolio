@@ -6,6 +6,11 @@ interface HealthResponse {
 
 const { data, error, status, refresh } =
   await useFetch<HealthResponse>("/api/health");
+const hydrated = ref(false);
+
+onMounted(() => {
+  hydrated.value = true;
+});
 </script>
 
 <template>
@@ -21,7 +26,11 @@ const { data, error, status, refresh } =
       <p v-else-if="data">
         API: {{ data.status }} · MySQL: {{ data.database }}
       </p>
-      <button type="button" :disabled="status === 'pending'" @click="refresh()">
+      <button
+        type="button"
+        :disabled="!hydrated || status === 'pending'"
+        @click="refresh()"
+      >
         Check again
       </button>
     </section>

@@ -5,6 +5,15 @@ applyTo: "apps/webs/**/*.{vue,ts}"
 
 # 프론트엔드 개발 지침
 
+## 디렉토리별 세부 지침
+
+- `apps/webs/app/pages/`, `components/`, `composables/`: [앱 화면·상태](frontend-app.instructions.md)
+- `apps/webs/server/`: [Nuxt 서버·프록시](frontend-server.instructions.md)
+- `packages/shared/`: [프레임워크 독립 공유 코드](shared.instructions.md)
+- `specs/`: [명세와 API 계약](specifications.instructions.md)
+
+필요한 디렉토리만 생성하며, [디렉토리 결정 기록](../../docs/decisions/002-implementation-directory-layout.md)의 현재 상태와 예정 구조를 구분한다.
+
 ## 구조
 
 - 기존 페이지, 컴포넌트, composable, 상태 관리 구조를 따른다.
@@ -14,11 +23,13 @@ applyTo: "apps/webs/**/*.{vue,ts}"
 
 ## 데이터와 API
 
+- 기능별 상태 전이와 API 계약은 `specs/`를 먼저 확인한다.
 - 서버 API를 데이터와 권한의 최종 기준으로 취급한다.
 - 버튼 숨김을 권한 보안 수단으로 간주하지 않는다.
 - 요청과 응답 타입을 명확히 정의한다.
 - 로딩, 빈 데이터, 성공, 오류 상태를 각각 처리한다.
 - 중복 제출을 방지하고 실패 시 재시도 가능 여부를 명확히 한다.
+- 충돌 응답을 처리할 때 사용자의 미저장 입력을 보존한다.
 
 ## 사용자 경험
 

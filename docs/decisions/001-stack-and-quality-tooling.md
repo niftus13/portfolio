@@ -24,9 +24,9 @@ The repository is a growing application monorepo. Its directories and agent inst
 - `pnpm lint`, `pnpm format:check`, and `pnpm typecheck` are workspace-level checks. Type checking delegates to the API's TypeScript compiler and Nuxt's type checker, then checks shared code and harness configuration.
 - `pnpm test` runs unit and integration tests; `pnpm eval` runs evaluation cases independently.
 - `pnpm verify` runs formatting, lint, type-check, unit/integration tests, and evaluations.
-- `pnpm test:e2e` is an explicit browser check. It requires the web app to be running at `PLAYWRIGHT_BASE_URL` (default `http://127.0.0.1:3000`) and the Playwright Chromium browser to be installed.
+- `pnpm test:e2e` is an explicit browser check. Playwright starts its own Nuxt server and API fixture on ports 3000 and 4001; Chromium and its system libraries must be installed. Occupied ports cause a failure instead of reusing another service.
 - API liveness is available at `/health`; `/health/ready` checks MySQL connectivity and is used by Compose health checks.
-- Keep each test runner's fail-on-no-tests behavior. Until test files are added, its command (and `pnpm verify`) will fail rather than report a green result without coverage.
+- Keep each test runner's fail-on-no-tests behavior. A passing combined test run does not establish that each individual test category has coverage.
 
 ## Consequences
 
