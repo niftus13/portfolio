@@ -1,10 +1,19 @@
 import { createServer } from "node:http";
+import { open } from "node:fs/promises";
 
 import { createApp } from "./app.js";
-import { config } from "./config.js";
+import { authConfig, config } from "./config.js";
 import { checkDatabase, pool } from "./database.js";
+import { AuthRepository } from "./repositories/auth.js";
+import { AuthService } from "./services/auth.js";
 
-const server = createServer(createApp({ checkDatabase }));
+const auth = authConfig();
+const auditFile = await open(auth.auditFailureLog, "a", 0o600);
+await auditFile.close();
+const service = new AuthService(new AuthRepository(pool), auth.auditFailureLog);
+const server = createServer(
+  createApp({ checkDatabase, auth: { ...auth, service } }),
+);
 
 server.listen(config.port, config.host, () => {
   console.info(`API listening on http://${config.host}:${config.port}`);

@@ -20,7 +20,9 @@ COPY --from=build --chown=node:node /workspace/node_modules ./node_modules
 COPY --from=build --chown=node:node /workspace/apps/api/package.json ./apps/api/package.json
 COPY --from=build --chown=node:node /workspace/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build --chown=node:node /workspace/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=node:node /workspace/apps/api/migrations ./apps/api/migrations
 
+RUN mkdir -p /workspace/logs && chown node:node /workspace/logs
 USER node
 EXPOSE 4000
 CMD ["node", "apps/api/dist/index.js"]

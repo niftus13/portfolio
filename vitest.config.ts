@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
@@ -7,5 +7,6 @@ export default defineConfig({
       "tests/integration/**/*.{test,spec}.{ts,tsx}",
       "evals/cases/**/*.eval.test.ts",
     ],
+    exclude: [...configDefaults.exclude, "tests/integration/mysql/**"],
   },
 });

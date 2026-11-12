@@ -30,3 +30,36 @@ export const config = {
     name: requiredEnv("DB_NAME"),
   },
 };
+
+export function authConfig() {
+  const allowedOrigin = requiredEnv("AUTH_ALLOWED_ORIGIN");
+  let url: URL;
+  try {
+    url = new URL(allowedOrigin);
+  } catch {
+    throw new Error("AUTH_ALLOWED_ORIGIN must be an absolute origin");
+  }
+  if (
+    url.origin !== allowedOrigin ||
+    (url.protocol !== "https:" &&
+      !(
+        url.protocol === "http:" &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+      ))
+  ) {
+    throw new Error("AUTH_ALLOWED_ORIGIN must use HTTPS except for local HTTP");
+  }
+  const proxy = requiredEnv("AUTH_TRUST_PROXY");
+  const trustProxy: string | false = proxy === "none" ? false : proxy;
+  const auditFailureLog = requiredEnv("AUTH_AUDIT_FAILURE_LOG");
+  if (!isAbsolute(auditFailureLog)) {
+    throw new Error("AUTH_AUDIT_FAILURE_LOG must be an absolute path");
+  }
+  return {
+    allowedOrigin,
+    secure: url.protocol === "https:",
+    trustProxy,
+    auditFailureLog,
+  };
+}
+import { isAbsolute } from "node:path";

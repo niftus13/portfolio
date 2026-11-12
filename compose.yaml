@@ -34,6 +34,15 @@ services:
       DB_USER: ${MYSQL_USER:-portfolio}
       DB_PASSWORD: ${MYSQL_PASSWORD:-local-app-password}
       DB_NAME: ${MYSQL_DATABASE:-portfolio}
+      AUTH_ALLOWED_ORIGIN: ${AUTH_ALLOWED_ORIGIN:-http://localhost:3000}
+      AUTH_TRUST_PROXY: ${AUTH_PROXY_IP:-172.29.251.2}
+      AUTH_AUDIT_FAILURE_LOG: /workspace/logs/auth-audit-failures.log
+    volumes:
+      - api-logs:/workspace/logs
+    networks:
+      default: {}
+      auth-proxy:
+        ipv4_address: ${AUTH_PROXY_API_IP:-172.29.251.3}
     ports:
       - "127.0.0.1:4000:4000"
     depends_on:
@@ -66,6 +75,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    networks:
+      auth-proxy:
+        ipv4_address: ${AUTH_PROXY_IP:-172.29.251.2}
     healthcheck:
       test:
         [
@@ -82,3 +94,11 @@ services:
 
 volumes:
   mysql-data:
+  api-logs:
+
+networks:
+  default:
+  auth-proxy:
+    ipam:
+      config:
+        - subnet: ${AUTH_PROXY_SUBNET:-172.29.251.0/24}

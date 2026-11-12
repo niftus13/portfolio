@@ -2,7 +2,7 @@
 
 This is a pnpm workspace organized around a verification loop: define expected behavior, implement it, then verify it with tests and evaluations. The API, web app, and MySQL database can run together with Docker Compose.
 
-The planned MVP is an organization-scoped workspace for sharing operational guides and FAQs, with tenant isolation, role-based access, and document history. These product features are not implemented yet; see the [MVP specification](specs/multitenant-mvp.md) and [implementation checklist](specs/multitenant-mvp-checklist.md).
+The planned MVP is an organization-scoped workspace for sharing operational guides and FAQs, with tenant isolation, role-based access, and document history. Signup and session-based login are implemented; organization and document features remain planned. See the [MVP specification](specs/multitenant-mvp.md) and [implementation checklist](specs/multitenant-mvp-checklist.md).
 
 ## Repository layout
 
@@ -47,23 +47,27 @@ Compose exposes the web app at `http://localhost:3000`, the API at `http://local
 
 Copy `.env.example` to `.env` to override local database credentials. Do not use the example or Compose fallback credentials outside local development. MySQL initializes its database and user from these values only when the data volume is first created; changing `.env` does not update an existing database or user. `pnpm docker:down` preserves database data; `docker compose down -v` deletes it.
 
-For local development without Docker, export `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` for the API, then run `pnpm dev:api`. The Compose `.env` file is not automatically loaded by the API process. The web app can be started separately with `pnpm dev:web`.
+Apply migrations before using authentication. For local development without Docker, export the database and authentication settings documented in the [API README](apps/api/README.md), then run `pnpm dev:api`. The Compose `.env` file is not automatically loaded by the API process. The web app can be started separately with `pnpm dev:web`.
 
 The verification commands are:
 
-| Command                 | Purpose                                                  |
-| ----------------------- | -------------------------------------------------------- |
-| `pnpm lint`             | ESLint across supported source and config files          |
-| `pnpm format:check`     | Check formatting with Prettier                           |
-| `pnpm typecheck`        | Type-check TypeScript sources and harness configs        |
-| `pnpm test:unit`        | Run unit tests                                           |
-| `pnpm test:integration` | Run integration tests                                    |
-| `pnpm test`             | Run unit and integration tests                           |
-| `pnpm eval`             | Run `*.eval.test.ts` cases in `evals/cases/`             |
-| `pnpm test:e2e`         | Run Playwright tests in `tests/e2e/`                     |
-| `pnpm verify`           | Run formatting, lint, type-check, tests, and evaluations |
+| Command                       | Purpose                                                  |
+| ----------------------------- | -------------------------------------------------------- |
+| `pnpm lint`                   | ESLint across supported source and config files          |
+| `pnpm format:check`           | Check formatting with Prettier                           |
+| `pnpm typecheck`              | Type-check TypeScript sources and harness configs        |
+| `pnpm test:unit`              | Run unit tests                                           |
+| `pnpm test:integration`       | Run integration tests                                    |
+| `pnpm test:integration:mysql` | Run integration tests against isolated MySQL             |
+| `pnpm test`                   | Run unit and integration tests                           |
+| `pnpm eval`                   | Run `*.eval.test.ts` cases in `evals/cases/`             |
+| `pnpm test:e2e`               | Run Playwright tests in `tests/e2e/`                     |
+| `pnpm test:e2e:auth`          | Run authentication E2E with the real API and MySQL       |
+| `pnpm verify`                 | Run formatting, lint, type-check, tests, and evaluations |
 
-E2E tests are separate from `pnpm verify`: `pnpm test:e2e` starts Nuxt and a deterministic API fixture on ports 3000 and 4001. Stop other services using those ports first; they will not be reused. Install the Playwright browser with `pnpm exec playwright install chromium` and, on Linux, its required system libraries with `pnpm exec playwright install-deps chromium` when needed. Use the Docker Compose stack for checks against a real MySQL instance.
+E2E tests are separate from `pnpm verify`: `pnpm test:e2e` uses a health fixture, while `pnpm test:e2e:auth` uses the real API and isolated MySQL. See [browser test setup](tests/e2e/README.md) for ports, isolation, browser dependencies and required environment variables.
+
+Database setup commands are `pnpm db:migrate` and `pnpm db:seed`; see the [API database setup](apps/api/README.md). Real-MySQL integration tests use a separate, explicitly configured test database as described in the [integration test README](tests/integration/README.md) and do not run as part of `pnpm verify`.
 
 Vitest and Playwright intentionally fail when their target selection has no test files. A passing combined test run does not guarantee coverage in every individual test category.
 

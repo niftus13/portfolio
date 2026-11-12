@@ -1,6 +1,6 @@
 # Multi-tenant document MVP
 
-Status: planned; these requirements are not yet implemented.
+Status: partially implemented. Initial database migrations, a one-time demo seed, authentication API and login UI exist; tenant authorization, document features, demo reset, and most verification below remain planned.
 
 The source is the [multi-tenant MVP document](https://app.notion.com/p/4152d703a2f881b2bbacf96824d986c7). This specification records its acceptance criteria and the explicitly agreed API decisions.
 
@@ -83,8 +83,8 @@ The member and organization-audit API uses these paths; request/response fields 
 - A trusted daily or manual reset restores only demo data and revokes only demo sessions. It must not alter ordinary organizations, users, or sessions.
 - Auth and organization audit records contain no password, session token, or document body. Successful membership changes and their audit records are atomic; denied-action records must survive the rejected business transaction.
 - A failed success-audit write rolls back its membership change. If a denied-action audit cannot be saved, the action remains denied and the server explicitly reports the audit failure.
-- Record denied authorization and login failures separately from any rolled-back business transaction. When login failure auditing fails, keep the login denied without revealing account existence, and explicitly log and alert on the audit failure.
-- If successful-login audit storage fails, issue no session and return a server error. If logout auditing fails, still revoke the session and return logout success; explicitly log and alert on the audit failure. If session revocation itself fails, do not report logout success.
+- Record denied authorization and login failures separately from any rolled-back business transaction. When login failure auditing fails, keep the login denied without revealing account existence and explicitly record the audit failure in a log file. Do not send an alert for authentication audit failures.
+- If successful-login audit storage fails, issue no session and return a server error. If logout auditing fails, still revoke the session and return logout success. Record either audit failure in a log file without sending an alert. If session revocation itself fails, do not report logout success.
 - Organization audit access is limited to that organization's owner and admin through the API above. Authentication audit access is limited to operators in a trusted environment using a dedicated database account with read-only access to the authentication audit table. Do not commit credentials. A separate operator service or audit UI is out of scope.
 - Audit records are retained for 30 days. A separate authorized operational job cleans up only expired records, independently of demo reset, and reports failures.
 

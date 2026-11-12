@@ -17,6 +17,7 @@ onMounted(() => {
   <main>
     <h1>Portfolio</h1>
     <p>API and database service status</p>
+    <NuxtLink to="/login">로그인 및 회원가입</NuxtLink>
 
     <section aria-live="polite">
       <p v-if="status === 'pending'">Checking service health…</p>

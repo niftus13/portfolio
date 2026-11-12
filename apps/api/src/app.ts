@@ -1,13 +1,27 @@
-import express from "express";
+import express, { type ErrorRequestHandler } from "express";
+
+import { createAuthRouter, sendAuthError } from "./routes/auth.js";
+import type { AuthService } from "./services/auth.js";
 
 export interface AppDependencies {
   checkDatabase: () => Promise<void>;
+  auth?: {
+    service: AuthService;
+    allowedOrigin: string;
+    secure: boolean;
+    trustProxy: string | false;
+  };
 }
 
-export function createApp({ checkDatabase }: AppDependencies) {
+export function createApp({ checkDatabase, auth }: AppDependencies) {
   const app = express();
 
   app.disable("x-powered-by");
+  if (auth) app.set("trust proxy", auth.trustProxy);
+  app.use("/api/v1", (_request, response, next) => {
+    response.set("Cache-Control", "no-store");
+    next();
+  });
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/health", (_request, response) => {
@@ -30,6 +44,26 @@ export function createApp({ checkDatabase }: AppDependencies) {
       });
     }
   });
+
+  if (auth) {
+    app.use(
+      "/api/v1",
+      createAuthRouter(auth.service, auth.allowedOrigin, auth.secure),
+    );
+  }
+  const errorHandler: ErrorRequestHandler = (
+    error: unknown,
+    _request,
+    response,
+    next,
+  ) => {
+    if (response.headersSent) {
+      next(error);
+      return;
+    }
+    sendAuthError(error, response);
+  };
+  app.use(errorHandler);
 
   return app;
 }
