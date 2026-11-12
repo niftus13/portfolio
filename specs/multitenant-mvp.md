@@ -11,6 +11,12 @@ The source is the [multi-tenant MVP document](https://app.notion.com/p/4152d703a
 - Members can manage guides and FAQs with categories, Markdown, search, version history, and a trash.
 - Organization creation, invitations, new memberships, ownership transfer, permanent deletion, attachments, and real-time collaboration are outside the MVP.
 
+## Workspace interface
+
+- The dashboard, account and document pages share a console-style navigation shell with links to each page. The current page is visibly identified and the main content is reachable by keyboard.
+- The dashboard displays actual service health and links to the account and document workflows; it does not invent organization or document statistics.
+- The document workspace shows organization selection and, once selected, document search, editing and role-appropriate management. Loading, empty, error, conflict and success states remain available. On narrow screens navigation and forms remain usable without horizontal page overflow.
+
 ## Authentication and tenant boundaries
 
 - Signup and login normalize email identically by trimming surrounding whitespace and lowercasing it. A duplicate signup returns `409`; login failures do not reveal whether the account exists.

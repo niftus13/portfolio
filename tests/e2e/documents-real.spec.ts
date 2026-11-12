@@ -75,6 +75,16 @@ test("owner creates and edits a document through the real proxy and keeps a conf
     await expect(page.getByRole("button", { name: "새 문서" })).toBeEnabled();
     await page.getByRole("button", { name: "새 문서" }).focus();
     await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "문서 만들기" }),
+    ).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel("제목", { exact: true })).toBeFocused();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
     await page.getByLabel("제목", { exact: true }).fill("브라우저 문서");
     await page.getByLabel("본문 (Markdown 원문)").fill("최초 내용");
     await page
@@ -84,6 +94,11 @@ test("owner creates and edits a document through the real proxy and keeps a conf
     await expect(page.getByRole("status")).toContainText("저장했습니다");
     await expect(page.getByText("버전 1 · revision 1")).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 800 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
     await page.getByLabel("본문 (Markdown 원문)").fill("수정 내용");
     await page.getByRole("button", { name: "저장" }).click();
     await expect(page.getByText("버전 2 · revision 2")).toBeVisible();

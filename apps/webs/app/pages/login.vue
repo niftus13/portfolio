@@ -126,73 +126,107 @@ async function logout() {
 
 <!-- eslint-disable vue/html-self-closing -- Prettier formats void tags as self-closing. -->
 <template>
-  <main>
-    <h1>계정</h1>
-    <NuxtLink to="/">서비스 상태</NuxtLink>
+  <main class="page account-page">
+    <div class="breadcrumb">Workspace <span>/</span> 계정</div>
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">ACCOUNT</p>
+        <h1>계정</h1>
+        <p class="page-description">
+          {{
+            user
+              ? "계정과 워크스페이스 접근 상태를 확인하세요."
+              : "워크스페이스에 접근하려면 로그인하세요."
+          }}
+        </p>
+      </div>
+      <NuxtLink class="text-link" to="/">
+        서비스 상태 <span aria-hidden="true">→</span>
+      </NuxtLink>
+    </div>
     <p v-if="loading">인증 상태를 확인하고 있습니다…</p>
-    <template v-else>
-      <p v-if="message" role="status">{{ message }}</p>
-      <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
-      <section v-if="user">
-        <h2>{{ user.displayName }}님, 환영합니다</h2>
-        <p v-if="hasOrganizations">
-          <NuxtLink to="/documents">조직과 문서 보기</NuxtLink>
-        </p>
-        <p v-else>
-          소속된 조직이 없습니다. 문서 기능을 체험하려면 데모 계정을 이용해
-          주세요.
-        </p>
-        <button type="button" :disabled="submitting" @click="logout">
-          로그아웃
-        </button>
-      </section>
-      <section v-else>
-        <h2>{{ mode === "login" ? "로그인" : "회원가입" }}</h2>
-        <form @submit.prevent="submit">
-          <label for="auth-email">이메일</label>
-          <input
-            id="auth-email"
-            v-model="email"
-            type="text"
-            inputmode="email"
-            autocomplete="username"
-            required
-          />
-          <label v-if="mode === 'signup'" for="auth-name">이름</label>
-          <input
-            v-if="mode === 'signup'"
-            id="auth-name"
-            v-model="displayName"
-            autocomplete="name"
-            required
-          />
-          <label for="auth-password">비밀번호</label>
-          <input
-            id="auth-password"
-            v-model="password"
-            type="password"
-            :autocomplete="
-              mode === 'login' ? 'current-password' : 'new-password'
-            "
-            required
-          />
-          <p>비밀번호는 12~128자로 입력해 주세요.</p>
-          <button type="submit" :disabled="submitting">
-            {{ submitting ? "처리 중…" : mode === "login" ? "로그인" : "가입" }}
+    <div v-else class="account-layout">
+      <div class="account-main">
+        <p v-if="message" role="status">{{ message }}</p>
+        <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
+        <section v-if="user" class="panel account-panel">
+          <p class="eyebrow">SIGNED IN</p>
+          <h2>{{ user.displayName }}님, 환영합니다</h2>
+          <p class="muted">{{ user.email }}</p>
+          <p v-if="hasOrganizations">
+            <NuxtLink class="button button-primary" to="/documents">
+              조직과 문서 보기
+            </NuxtLink>
+          </p>
+          <p v-else>
+            소속된 조직이 없습니다. 문서 기능을 체험하려면 데모 계정을 이용해
+            주세요.
+          </p>
+          <button type="button" :disabled="submitting" @click="logout">
+            로그아웃
           </button>
-        </form>
-        <button
-          type="button"
-          :disabled="submitting"
-          @click="
-            mode = mode === 'login' ? 'signup' : 'login';
-            errorMessage = '';
-            message = '';
-          "
-        >
-          {{ mode === "login" ? "회원가입" : "로그인으로 돌아가기" }}
-        </button>
-      </section>
-    </template>
+        </section>
+        <section v-else class="panel account-panel">
+          <p class="eyebrow">SECURE ACCESS</p>
+          <h2>{{ mode === "login" ? "로그인" : "회원가입" }}</h2>
+          <p class="muted">계정 정보를 입력해 계속 진행하세요.</p>
+          <form class="stack-form" @submit.prevent="submit">
+            <label for="auth-email">이메일</label>
+            <input
+              id="auth-email"
+              v-model="email"
+              type="text"
+              inputmode="email"
+              autocomplete="username"
+              required
+            />
+            <label v-if="mode === 'signup'" for="auth-name">이름</label>
+            <input
+              v-if="mode === 'signup'"
+              id="auth-name"
+              v-model="displayName"
+              autocomplete="name"
+              required
+            />
+            <label for="auth-password">비밀번호</label>
+            <input
+              id="auth-password"
+              v-model="password"
+              type="password"
+              :autocomplete="
+                mode === 'login' ? 'current-password' : 'new-password'
+              "
+              required
+            />
+            <p class="field-hint">비밀번호는 12~128자로 입력해 주세요.</p>
+            <button class="button-primary" type="submit" :disabled="submitting">
+              {{
+                submitting ? "처리 중…" : mode === "login" ? "로그인" : "가입"
+              }}
+            </button>
+          </form>
+          <button
+            class="account-switch"
+            type="button"
+            :disabled="submitting"
+            @click="
+              mode = mode === 'login' ? 'signup' : 'login';
+              errorMessage = '';
+              message = '';
+            "
+          >
+            {{ mode === "login" ? "회원가입" : "로그인으로 돌아가기" }}
+          </button>
+        </section>
+      </div>
+      <aside class="account-aside">
+        <span class="quick-icon" aria-hidden="true">▤</span>
+        <h2>하나의 워크스페이스,<br />정리된 팀 지식</h2>
+        <p>조직별 문서에 접근하고 변경 이력을 확인할 수 있습니다.</p>
+        <div class="aside-note">
+          <span aria-hidden="true">✓</span> 조직별 접근 권한 적용
+        </div>
+      </aside>
+    </div>
   </main>
 </template>

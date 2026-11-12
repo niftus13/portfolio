@@ -444,9 +444,20 @@ async function restoreVersion(version: string) {
 
 <!-- eslint-disable vue/html-self-closing -- Prettier formats void tags as self-closing. -->
 <template>
-  <main>
-    <h1>조직과 문서</h1>
-    <NuxtLink to="/login">계정으로 돌아가기</NuxtLink>
+  <main class="page documents-page">
+    <div class="breadcrumb">Workspace <span>/</span> 조직과 문서</div>
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">DOCUMENT WORKSPACE</p>
+        <h1>조직과 문서</h1>
+        <p class="page-description">
+          조직의 지식을 찾고, 작성하고, 함께 관리하세요.
+        </p>
+      </div>
+      <NuxtLink class="text-link" to="/login">
+        계정으로 돌아가기 <span aria-hidden="true">→</span>
+      </NuxtLink>
+    </div>
     <p v-if="loading">조직을 불러오고 있습니다…</p>
     <template v-else>
       <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
@@ -461,36 +472,94 @@ async function restoreVersion(version: string) {
       <p v-else-if="!organizations.length">
         소속된 조직이 없습니다. 데모 계정을 이용해 주세요.
       </p>
-      <section v-if="organizations.length">
-        <h2>조직 선택</h2>
-        <button
-          v-for="organization in organizations"
-          :key="organization.slug"
-          type="button"
-          :disabled="busy"
-          @click="selectOrganization(organization)"
-        >
-          {{ organization.name }} ({{ organization.role }})
-        </button>
-      </section>
-      <section v-if="selected">
-        <h2>{{ selected.name }} 문서</h2>
-        <form @submit.prevent="search(0)">
-          <label for="document-search">제목·본문 검색</label>
-          <input
-            id="document-search"
-            v-model="searchQuery"
-            required
+      <section v-if="organizations.length" class="panel organization-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ORGANIZATION</p>
+            <h2>조직 선택</h2>
+          </div>
+          <span class="section-caption">{{ organizations.length }}개 조직</span>
+        </div>
+        <div class="organization-list">
+          <button
+            v-for="organization in organizations"
+            :key="organization.slug"
+            class="organization-button"
+            :class="{
+              'organization-active': selected?.slug === organization.slug,
+            }"
+            :aria-pressed="selected?.slug === organization.slug"
+            type="button"
             :disabled="busy"
-          />
-          <button type="submit" :disabled="busy">검색</button>
-        </form>
-        <section v-if="searchLoaded">
-          <h3>검색 결과: {{ searchedQuery }}</h3>
-          <p>결과는 검색 시점 기준입니다.</p>
-          <p v-if="!searchResults.length">일치하는 문서가 없습니다.</p>
-          <ul v-else>
-            <li v-for="document in searchResults" :key="document.id">
+            @click="selectOrganization(organization)"
+          >
+            {{ organization.name }} ({{ organization.role }})
+          </button>
+        </div>
+      </section>
+      <section
+        v-if="organizations.length && !selected"
+        class="panel editor-empty organization-empty"
+      >
+        <span class="empty-icon" aria-hidden="true">▦</span>
+        <h2>조직을 선택하세요</h2>
+        <p>조직을 선택하면 문서와 사용 가능한 관리 기능을 볼 수 있습니다.</p>
+      </section>
+      <div v-if="selected" class="workspace-grid">
+        <section class="panel document-list-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">DOCUMENTS</p>
+              <h2>{{ selected.name }} 문서</h2>
+            </div>
+            <span class="count-badge">{{ documents.length }}</span>
+          </div>
+          <form class="search-form" @submit.prevent="search(0)">
+            <label for="document-search">제목·본문 검색</label>
+            <div class="search-row">
+              <input
+                id="document-search"
+                v-model="searchQuery"
+                required
+                :disabled="busy"
+              />
+              <button type="submit" :disabled="busy">검색</button>
+            </div>
+          </form>
+          <section v-if="searchLoaded" class="search-results">
+            <h3>검색 결과: {{ searchedQuery }}</h3>
+            <p>결과는 검색 시점 기준입니다.</p>
+            <p v-if="!searchResults.length">일치하는 문서가 없습니다.</p>
+            <ul v-else>
+              <li v-for="document in searchResults" :key="document.id">
+                <button
+                  type="button"
+                  :disabled="busy"
+                  @click="openDocument(document.id)"
+                >
+                  {{ document.title }}
+                </button>
+              </li>
+            </ul>
+            <button
+              type="button"
+              :disabled="busy || searchOffset === 0"
+              @click="search(Math.max(0, searchOffset - 20), false)"
+            >
+              이전 결과
+            </button>
+            <button
+              type="button"
+              :disabled="busy || searchResults.length < 20"
+              @click="search(searchOffset + 20, false)"
+            >
+              다음 결과
+            </button>
+          </section>
+          <p v-if="busy">처리 중…</p>
+          <p v-else-if="!documents.length">문서가 없습니다.</p>
+          <ul v-if="documents.length" class="document-list">
+            <li v-for="document in documents" :key="document.id">
               <button
                 type="button"
                 :disabled="busy"
@@ -501,154 +570,201 @@ async function restoreVersion(version: string) {
             </li>
           </ul>
           <button
+            v-if="canWrite"
+            class="button-primary new-document"
             type="button"
-            :disabled="busy || searchOffset === 0"
-            @click="search(Math.max(0, searchOffset - 20), false)"
+            :disabled="busy"
+            @click="newDocument"
           >
-            이전 결과
-          </button>
-          <button
-            type="button"
-            :disabled="busy || searchResults.length < 20"
-            @click="search(searchOffset + 20, false)"
-          >
-            다음 결과
+            새 문서
           </button>
         </section>
-        <p v-if="busy">처리 중…</p>
-        <p v-else-if="!documents.length">문서가 없습니다.</p>
-        <ul v-if="documents.length">
-          <li v-for="document in documents" :key="document.id">
+        <section v-if="creating || current" class="panel editor-panel">
+          <p class="eyebrow">EDITOR</p>
+          <h2>{{ creating ? "문서 만들기" : "문서 상세" }}</h2>
+          <form class="editor-form" @submit.prevent="save">
+            <label for="document-title">제목</label>
+            <input
+              id="document-title"
+              v-model="title"
+              required
+              :disabled="busy || !canWrite"
+            />
+            <label for="document-content">본문 (Markdown 원문)</label>
+            <textarea
+              id="document-content"
+              v-model="content"
+              rows="12"
+              :disabled="busy || !canWrite"
+            />
+            <section class="markdown-preview" aria-label="Markdown 미리보기">
+              <h3>미리보기</h3>
+              <!-- eslint-disable-next-line vue/no-v-html -- Raw HTML and unsafe links are disabled by the renderer. -->
+              <div v-html="preview" />
+            </section>
+            <label for="document-category">카테고리</label>
+            <select
+              id="document-category"
+              v-model="categoryId"
+              :disabled="busy || !canWrite"
+            >
+              <option value="">없음</option>
+              <option
+                v-for="category in categories.filter((item) => !item.deleted)"
+                :key="category.id"
+                :value="category.id"
+              >
+                {{ category.name }}
+              </option>
+            </select>
+            <p v-if="current">
+              버전 {{ current.contentVersion }} · revision
+              {{ current.revision }}
+            </p>
             <button
+              v-if="canWrite"
+              class="button-primary"
+              type="submit"
+              :disabled="busy || conflict"
+            >
+              저장
+            </button>
+            <button
+              v-if="conflict"
               type="button"
               :disabled="busy"
-              @click="openDocument(document.id)"
+              @click="refreshRevision"
             >
-              {{ document.title }}
+              최신 revision 불러오기
             </button>
-          </li>
-        </ul>
-        <button
-          v-if="canWrite"
-          type="button"
-          :disabled="busy"
-          @click="newDocument"
-        >
-          새 문서
-        </button>
-      </section>
-      <section v-if="selected && canManage">
-        <h2>카테고리 관리</h2>
-        <label for="category-name">카테고리 이름</label>
-        <input id="category-name" v-model="categoryName" :disabled="busy" />
-        <button
-          type="button"
-          :disabled="busy"
-          @click="manageCategory('create')"
-        >
-          카테고리 추가
-        </button>
-        <label for="managed-category">관리할 카테고리</label>
-        <select
-          id="managed-category"
-          v-model="managedCategory"
-          :disabled="busy"
-        >
-          <option value="">선택</option>
-          <option
-            v-for="category in categories"
-            :key="category.id"
-            :value="category.id"
-          >
-            {{ category.name }}{{ category.deleted ? " (삭제됨)" : "" }}
-          </option>
-        </select>
-        <button
-          type="button"
-          :disabled="busy || !managedCategory"
-          @click="manageCategory('rename')"
-        >
-          이름 변경
-        </button>
-        <button
-          type="button"
-          :disabled="busy || !managedCategory"
-          @click="manageCategory('delete')"
-        >
-          카테고리 삭제
-        </button>
-        <button
-          type="button"
-          :disabled="busy || !managedCategory"
-          @click="manageCategory('restore')"
-        >
-          카테고리 복구
-        </button>
-        <h2>휴지통</h2>
-        <button type="button" :disabled="busy" @click="loadTrash">
-          휴지통 불러오기
-        </button>
-        <ul>
-          <li v-for="document in trashed" :key="document.id">
-            {{ document.title }}
+          </form>
+          <section v-if="current">
             <button
+              v-if="canManage"
               type="button"
               :disabled="busy"
-              @click="restoreDocument(document)"
+              @click="deleteDocument"
             >
-              문서 복구
+              문서 삭제
             </button>
-          </li>
-        </ul>
-      </section>
-      <MemberManagement v-if="selected && canManage" :slug="selected.slug" />
-      <section v-if="selected && canWrite">
-        <label for="recovery-category">복원 시 카테고리</label>
-        <select
-          id="recovery-category"
-          v-model="recoveryCategory"
-          :disabled="busy"
-        >
-          <option value="keep">기존 카테고리 유지</option>
-          <option value="none">카테고리 없음</option>
-          <option
-            v-for="category in categories.filter((item) => !item.deleted)"
-            :key="category.id"
-            :value="category.id"
-          >
-            {{ category.name }}
-          </option>
-        </select>
-      </section>
-      <section v-if="creating || current">
-        <h2>{{ creating ? "문서 만들기" : "문서 상세" }}</h2>
-        <form @submit.prevent="save">
-          <label for="document-title">제목</label>
-          <input
-            id="document-title"
-            v-model="title"
-            required
-            :disabled="busy || !canWrite"
-          />
-          <label for="document-content">본문 (Markdown 원문)</label>
-          <textarea
-            id="document-content"
-            v-model="content"
-            rows="12"
-            :disabled="busy || !canWrite"
-          />
-          <section aria-label="Markdown 미리보기">
-            <h3>미리보기</h3>
-            <!-- eslint-disable-next-line vue/no-v-html -- Raw HTML and unsafe links are disabled by the renderer. -->
-            <div v-html="preview" />
+            <details>
+              <summary>현재 서버에 저장된 내용</summary>
+              <p>{{ current.title }}</p>
+              <pre>{{ current.contentMd }}</pre>
+            </details>
+            <h3>변경 이력</h3>
+            <ol>
+              <li v-for="version in versions" :key="version.version">
+                <details>
+                  <summary>
+                    버전 {{ version.version }} · {{ version.changeType }} ·
+                    {{ version.createdAt }}
+                  </summary>
+                  <p>{{ version.title }}</p>
+                  <pre>{{ version.contentMd }}</pre>
+                  <button
+                    v-if="canWrite"
+                    type="button"
+                    :disabled="busy"
+                    @click="restoreVersion(version.version)"
+                  >
+                    이 버전 복원
+                  </button>
+                </details>
+              </li>
+            </ol>
           </section>
-          <label for="document-category">카테고리</label>
+        </section>
+        <section v-else class="panel editor-panel editor-empty">
+          <span class="empty-icon" aria-hidden="true">▤</span>
+          <h2>문서를 선택하세요</h2>
+          <p>
+            {{
+              canWrite
+                ? "목록에서 문서를 선택하거나 새 문서를 만들어 시작하세요."
+                : "목록에서 문서를 선택해 내용을 확인하세요."
+            }}
+          </p>
+        </section>
+        <section v-if="canManage" class="panel category-panel">
+          <p class="eyebrow">ORGANIZE</p>
+          <h2>카테고리 관리</h2>
+          <div class="management-fields">
+            <label for="category-name">카테고리 이름</label>
+            <input id="category-name" v-model="categoryName" :disabled="busy" />
+            <button
+              type="button"
+              :disabled="busy"
+              @click="manageCategory('create')"
+            >
+              카테고리 추가
+            </button>
+            <label for="managed-category">관리할 카테고리</label>
+            <select
+              id="managed-category"
+              v-model="managedCategory"
+              :disabled="busy"
+            >
+              <option value="">선택</option>
+              <option
+                v-for="category in categories"
+                :key="category.id"
+                :value="category.id"
+              >
+                {{ category.name }}{{ category.deleted ? " (삭제됨)" : "" }}
+              </option>
+            </select>
+            <button
+              type="button"
+              :disabled="busy || !managedCategory"
+              @click="manageCategory('rename')"
+            >
+              이름 변경
+            </button>
+            <button
+              type="button"
+              :disabled="busy || !managedCategory"
+              @click="manageCategory('delete')"
+            >
+              카테고리 삭제
+            </button>
+            <button
+              type="button"
+              :disabled="busy || !managedCategory"
+              @click="manageCategory('restore')"
+            >
+              카테고리 복구
+            </button>
+          </div>
+          <div class="panel-divider" />
+          <h2>휴지통</h2>
+          <button type="button" :disabled="busy" @click="loadTrash">
+            휴지통 불러오기
+          </button>
+          <ul>
+            <li v-for="document in trashed" :key="document.id">
+              {{ document.title }}
+              <button
+                type="button"
+                :disabled="busy"
+                @click="restoreDocument(document)"
+              >
+                문서 복구
+              </button>
+            </li>
+          </ul>
+        </section>
+        <MemberManagement v-if="canManage" :slug="selected.slug" />
+        <section v-if="canWrite" class="panel recovery-panel">
+          <p class="eyebrow">RESTORE OPTIONS</p>
+          <label for="recovery-category">복원 시 카테고리</label>
           <select
-            id="document-category"
-            v-model="categoryId"
-            :disabled="busy || !canWrite"
+            id="recovery-category"
+            v-model="recoveryCategory"
+            :disabled="busy"
           >
-            <option value="">없음</option>
+            <option value="keep">기존 카테고리 유지</option>
+            <option value="none">카테고리 없음</option>
             <option
               v-for="category in categories.filter((item) => !item.deleted)"
               :key="category.id"
@@ -657,58 +773,8 @@ async function restoreVersion(version: string) {
               {{ category.name }}
             </option>
           </select>
-          <p v-if="current">
-            버전 {{ current.contentVersion }} · revision {{ current.revision }}
-          </p>
-          <button v-if="canWrite" type="submit" :disabled="busy || conflict">
-            저장
-          </button>
-          <button
-            v-if="conflict"
-            type="button"
-            :disabled="busy"
-            @click="refreshRevision"
-          >
-            최신 revision 불러오기
-          </button>
-        </form>
-        <section v-if="current">
-          <button
-            v-if="canManage"
-            type="button"
-            :disabled="busy"
-            @click="deleteDocument"
-          >
-            문서 삭제
-          </button>
-          <details>
-            <summary>현재 서버에 저장된 내용</summary>
-            <p>{{ current.title }}</p>
-            <pre>{{ current.contentMd }}</pre>
-          </details>
-          <h3>변경 이력</h3>
-          <ol>
-            <li v-for="version in versions" :key="version.version">
-              <details>
-                <summary>
-                  버전 {{ version.version }} · {{ version.changeType }} ·
-                  {{ version.createdAt }}
-                </summary>
-                <p>{{ version.title }}</p>
-                <pre>{{ version.contentMd }}</pre>
-                <button
-                  v-if="canWrite"
-                  type="button"
-                  :disabled="busy"
-                  @click="restoreVersion(version.version)"
-                >
-                  이 버전 복원
-                </button>
-              </details>
-            </li>
-          </ol>
         </section>
-      </section>
+      </div>
     </template>
   </main>
 </template>

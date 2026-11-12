@@ -85,13 +85,18 @@ async function save() {
 </script>
 
 <template>
-  <section>
+  <section class="panel member-panel">
+    <p class="eyebrow">ACCESS</p>
     <h2>멤버 관리</h2>
     <button type="button" :disabled="busy" @click="load">멤버 불러오기</button>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="message" role="status">{{ message }}</p>
     <p v-if="loaded && !members.length">멤버가 없습니다.</p>
-    <form v-if="members.length" @submit.prevent="save">
+    <form
+      v-if="members.length"
+      class="stack-form member-form"
+      @submit.prevent="save"
+    >
       <label for="member-select">멤버</label>
       <select id="member-select" v-model="selected" :disabled="busy">
         <option value="">선택</option>
