@@ -107,6 +107,19 @@ export class DocumentService {
     return (await this.repository.list(organization.id)).map(documentResponse);
   }
 
+  async search(
+    userId: string,
+    slug: string,
+    query: string,
+    limit: number,
+    offset: number,
+  ) {
+    const organization = await this.organization(userId, slug);
+    return (
+      await this.repository.search(organization.id, query, limit, offset)
+    ).map(documentResponse);
+  }
+
   async get(userId: string, slug: string, id: string) {
     const organization = await this.organization(userId, slug);
     return documentResponse(await this.document(organization.id, id));

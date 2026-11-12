@@ -1,6 +1,6 @@
 # Multi-tenant document MVP
 
-Status: partially implemented. Initial migrations, one-time demo seed, authentication, tenant-scoped documents, categories, trash, version restoration and member management are implemented. Search, Markdown preview, demo reset, and their verification remain planned.
+Status: partially implemented. Authentication, tenant-scoped documents, categories, recovery, member management, search and Markdown preview are implemented. Demo reset and public-deployment operations remain planned.
 
 The source is the [multi-tenant MVP document](https://app.notion.com/p/4152d703a2f881b2bbacf96824d986c7). This specification records its acceptance criteria and the explicitly agreed API decisions.
 

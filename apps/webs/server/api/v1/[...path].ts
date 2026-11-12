@@ -7,7 +7,8 @@ const permittedPaths = new Set([
 ]);
 
 export default defineEventHandler(async (event) => {
-  const path = getRequestURL(event).pathname;
+  const url = getRequestURL(event);
+  const path = url.pathname;
   const documentPath =
     path === "/api/v1/orgs" ||
     /^\/api\/v1\/orgs\/[^/]+\/documents(?:\/[0-9a-f-]{36}(?:\/versions(?:\/[0-9]+\/restore)?)?)?$/i.test(
@@ -21,7 +22,8 @@ export default defineEventHandler(async (event) => {
     ) ||
     /^\/api\/v1\/orgs\/[^/]+\/members(?:\/[0-9a-f-]{36})?$/i.test(path) ||
     /^\/api\/v1\/orgs\/[^/]+\/audit-events$/i.test(path);
-  if (!permittedPaths.has(path) && !documentPath) {
+  const searchPath = /^\/api\/v1\/orgs\/[^/]+\/search$/i.test(path);
+  if (!permittedPaths.has(path) && !documentPath && !searchPath) {
     throw createError({ statusCode: 404, statusMessage: "Not Found" });
   }
   const ip = getRequestIP(event) ?? (import.meta.dev ? "127.0.0.1" : undefined);
@@ -32,7 +34,7 @@ export default defineEventHandler(async (event) => {
     });
   }
   const { apiInternalUrl } = useRuntimeConfig(event);
-  return proxyRequest(event, `${apiInternalUrl}${path}`, {
+  return proxyRequest(event, `${apiInternalUrl}${path}${url.search}`, {
     headers: { "x-forwarded-for": ip },
     streamRequest: true,
   });

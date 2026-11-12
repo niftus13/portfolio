@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { renderMarkdown } from "../utils/markdown";
+
 interface Organization {
   slug: string;
   name: string;
@@ -38,6 +40,11 @@ const categoryId = ref("");
 const categoryName = ref("");
 const managedCategory = ref("");
 const recoveryCategory = ref("keep");
+const searchQuery = ref("");
+const searchedQuery = ref("");
+const searchResults = ref<Document[]>([]);
+const searchOffset = ref(0);
+const searchLoaded = ref(false);
 const title = ref("");
 const content = ref("");
 const creating = ref(false);
@@ -54,6 +61,12 @@ const canManage = computed(
 );
 const orgBase = computed(
   () => `/api/v1/orgs/${encodeURIComponent(selected.value?.slug ?? "")}`,
+);
+const preview = computed(() =>
+  renderMarkdown(
+    content.value,
+    import.meta.client ? window.location.origin : "https://preview.invalid",
+  ),
 );
 const base = computed(
   () =>
@@ -104,6 +117,11 @@ async function selectOrganization(organization: Organization) {
   creating.value = false;
   documents.value = [];
   versions.value = [];
+  searchQuery.value = "";
+  searchedQuery.value = "";
+  searchResults.value = [];
+  searchOffset.value = 0;
+  searchLoaded.value = false;
   errorMessage.value = "";
   message.value = "";
   busy.value = true;
@@ -115,6 +133,30 @@ async function selectOrganization(organization: Organization) {
     documents.value = list.documents;
     categories.value = categoryList.categories;
     trashed.value = [];
+  } catch (error) {
+    report(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function search(offset = 0, applyQuery = true) {
+  if (busy.value || !selected.value) return;
+  const query = applyQuery ? searchQuery.value : searchedQuery.value;
+  busy.value = true;
+  errorMessage.value = "";
+  try {
+    const result = await $fetch<{
+      documents: Document[];
+      offset: number;
+      limit: number;
+    }>(`${orgBase.value}/search`, {
+      query: { q: query, offset, limit: 20 },
+    });
+    searchResults.value = result.documents;
+    searchedQuery.value = query;
+    searchOffset.value = result.offset;
+    searchLoaded.value = true;
   } catch (error) {
     report(error);
   } finally {
@@ -433,6 +475,46 @@ async function restoreVersion(version: string) {
       </section>
       <section v-if="selected">
         <h2>{{ selected.name }} 문서</h2>
+        <form @submit.prevent="search(0)">
+          <label for="document-search">제목·본문 검색</label>
+          <input
+            id="document-search"
+            v-model="searchQuery"
+            required
+            :disabled="busy"
+          />
+          <button type="submit" :disabled="busy">검색</button>
+        </form>
+        <section v-if="searchLoaded">
+          <h3>검색 결과: {{ searchedQuery }}</h3>
+          <p>결과는 검색 시점 기준입니다.</p>
+          <p v-if="!searchResults.length">일치하는 문서가 없습니다.</p>
+          <ul v-else>
+            <li v-for="document in searchResults" :key="document.id">
+              <button
+                type="button"
+                :disabled="busy"
+                @click="openDocument(document.id)"
+              >
+                {{ document.title }}
+              </button>
+            </li>
+          </ul>
+          <button
+            type="button"
+            :disabled="busy || searchOffset === 0"
+            @click="search(Math.max(0, searchOffset - 20), false)"
+          >
+            이전 결과
+          </button>
+          <button
+            type="button"
+            :disabled="busy || searchResults.length < 20"
+            @click="search(searchOffset + 20, false)"
+          >
+            다음 결과
+          </button>
+        </section>
         <p v-if="busy">처리 중…</p>
         <p v-else-if="!documents.length">문서가 없습니다.</p>
         <ul v-if="documents.length">
@@ -555,6 +637,11 @@ async function restoreVersion(version: string) {
             rows="12"
             :disabled="busy || !canWrite"
           />
+          <section aria-label="Markdown 미리보기">
+            <h3>미리보기</h3>
+            <!-- eslint-disable-next-line vue/no-v-html -- Raw HTML and unsafe links are disabled by the renderer. -->
+            <div v-html="preview" />
+          </section>
           <label for="document-category">카테고리</label>
           <select
             id="document-category"

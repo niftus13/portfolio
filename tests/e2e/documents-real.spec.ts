@@ -75,7 +75,7 @@ test("owner creates and edits a document through the real proxy and keeps a conf
     await expect(page.getByRole("button", { name: "새 문서" })).toBeEnabled();
     await page.getByRole("button", { name: "새 문서" }).focus();
     await page.keyboard.press("Enter");
-    await page.getByLabel("제목").fill("브라우저 문서");
+    await page.getByLabel("제목", { exact: true }).fill("브라우저 문서");
     await page.getByLabel("본문 (Markdown 원문)").fill("최초 내용");
     await page
       .getByLabel("카테고리", { exact: true })
@@ -137,6 +137,23 @@ test("owner creates and edits a document through the real proxy and keeps a conf
     await expect(
       page.getByRole("button", { name: "브라우저 문서" }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "브라우저 문서" }).click();
+    await page
+      .getByLabel("본문 (Markdown 원문)")
+      .fill(
+        "# 제목\n\n**강조**\n\n[허용](/guide) [위험](javascript:alert(1))\n\n<img src=x onerror=alert(1)>",
+      );
+    const preview = page.getByRole("region", { name: "Markdown 미리보기" });
+    await expect(preview.getByRole("heading", { name: "제목" })).toBeVisible();
+    await expect(preview.getByRole("link", { name: "허용" })).toBeVisible();
+    await expect(preview.getByRole("link", { name: "위험" })).toHaveCount(0);
+    await expect(preview.locator("img")).toHaveCount(0);
+    await page.getByLabel("제목·본문 검색").fill("브라우저");
+    await page.getByRole("button", { name: "검색", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "검색 결과: 브라우저" }),
+    ).toBeVisible();
+    await expect(page.getByText("일치하는 문서가 없습니다.")).toHaveCount(0);
     await page.getByRole("button", { name: "멤버 불러오기" }).click();
     await page.getByLabel("멤버", { exact: true }).selectOption({
       label: `Browser viewer (${memberUserId}@browser-test.invalid) · viewer · active`,

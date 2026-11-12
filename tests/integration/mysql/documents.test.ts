@@ -220,6 +220,43 @@ describe("tenant-scoped document API with real MySQL", () => {
     base = `http://127.0.0.1:${address.port}`;
   });
 
+  it("accepts a search as the first request to a newly started API", async () => {
+    const freshServer = createServer(
+      createApp({
+        checkDatabase: async () => {
+          await pool.query("SELECT 1");
+        },
+        auth: {
+          service: new AuthService(new AuthRepository(pool), "/dev/null"),
+          allowedOrigin: origin,
+          secure: false,
+          trustProxy: false,
+        },
+        documents: new DocumentService(repository),
+        members: new MemberService(repository, memberRepository),
+      }),
+    );
+    await new Promise<void>((resolve, reject) => {
+      freshServer.once("error", reject);
+      freshServer.listen(0, "127.0.0.1", resolve);
+    });
+    try {
+      const address = freshServer.address();
+      if (!address || typeof address === "string")
+        throw new Error("No server address");
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/api/v1/orgs/${slugs[0]}/search?q=first`,
+        { headers: { Cookie: `portfolio_session=${tokens[0]}` } },
+      );
+      expect(response.status).toBe(200);
+      expect((await response.json()).documents).toEqual(expect.any(Array));
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        freshServer.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
   it("enforces member role transitions and commits successful audits atomically", async () => {
     const memberPath = `/api/v1/orgs/${slugs[0]}/members`;
     const newMembership = randomUUID();
@@ -823,6 +860,76 @@ describe("tenant-scoped document API with real MySQL", () => {
       (await (await request(0, path(0, document.id))).json()).document,
     ).toEqual(result.document);
   });
+  it("searches tenant-scoped literal Unicode substrings with deterministic pagination", async () => {
+    const make = async (
+      tenant: number,
+      user: number,
+      title: string,
+      contentMd: string,
+    ) => {
+      const response = await request(user, path(tenant), "POST", {
+        title,
+        contentMd,
+      });
+      expect(response.status).toBe(201);
+      return (await response.json()).document.id as string;
+    };
+    const titleId = await make(0, 0, "연차 및 휴가 신청", "other");
+    const bodyId = await make(0, 0, "Other", "연차 및 휴가 신청");
+    const literalId = await make(0, 0, "Percent %_ text", "Exact Case");
+    const removedId = await make(0, 0, "휴가 삭제", "");
+    await make(1, 2, "휴가 다른 조직", "");
+    expect(
+      (
+        await request(0, path(0, removedId), "DELETE", {
+          expectedRevision: "1",
+        })
+      ).status,
+    ).toBe(204);
+    await pool.execute(
+      "UPDATE documents SET updated_at = '2026-01-01 00:00:00.000' WHERE tenant_id = ? AND id IN (?, ?)",
+      [tenants[0], titleId, bodyId],
+    );
+    const searchPath = `/api/v1/orgs/${slugs[0]}/search`;
+    const result = await (
+      await request(1, `${searchPath}?q=${encodeURIComponent("휴가")}&limit=1`)
+    ).json();
+    const next = await (
+      await request(
+        1,
+        `${searchPath}?q=${encodeURIComponent("휴가")}&limit=1&offset=1`,
+      )
+    ).json();
+    expect([result.documents[0].id, next.documents[0].id]).toEqual(
+      [titleId, bodyId].sort().reverse(),
+    );
+    const literal = await (await request(1, `${searchPath}?q=%25_`)).json();
+    expect(literal.documents.map((item: { id: string }) => item.id)).toEqual([
+      literalId,
+    ]);
+    const wrongCase = await (await request(1, `${searchPath}?q=exact`)).json();
+    expect(wrongCase.documents).toHaveLength(0);
+    for (const suffix of [
+      "",
+      "?q=x&limit=0",
+      "?q=x&limit=101",
+      "?q=x&offset=-1",
+      "?q=x&offset=01",
+      "?q=x&q=y",
+      "?q=x&extra=y",
+    ]) {
+      expect((await request(0, `${searchPath}${suffix}`)).status).toBe(400);
+    }
+    expect(
+      (
+        await request(
+          0,
+          `/api/v1/orgs/${slugs[1]}/search?q=${encodeURIComponent("휴가")}`,
+        )
+      ).status,
+    ).toBe(404);
+  });
+
   it("serializes concurrent edits and rolls back document changes if a snapshot fails", async () => {
     const { document } = await (
       await request(0, path(0), "POST", { title: "Race", contentMd: "" })

@@ -12,7 +12,7 @@
 | 3    | 문서 생성·수정 및 최초/변경 이력     | 확정: 원자성·revision 우선·no-op                | 완료      | 완료 | 완료 |
 | 4    | 카테고리·삭제·휴지통·과거 버전 복원  | 확정: 버전과 revision 전이·복구 이력 종류       | 완료      | 완료 | 완료 |
 | 5    | 멤버 변경·감사 및 최소 화면          | 확정: 대상과 지정 역할·감사 원자성              | 완료      | 완료 | 완료 |
-| 5    | 제목·본문 검색·권한별 화면           | 확정: 한국어 부분 일치·초성/오타 제외           | 필요      | 필요 | 필요 |
+| 5    | 제목·본문 검색·권한별 화면           | 확정: 한국어 부분 일치·초성/오타 제외           | 완료      | 완료 | 완료 |
 | 6    | 데모 제한·초기화·감사 정리·운영      | 확정: 일반 데이터 보호·경합·실패·감사 보존 정책 | 필요      | 필요 | 필요 |
 
 ## 단계별 요구사항 → 계약 → 검증 → 완료 증거
@@ -50,9 +50,9 @@
 ### 5. 멤버·검색·화면
 
 - **요구사항:** 멤버 변경 API와 감사, 한국어 검색, 최소 멤버 화면, 역할별 UI, 허용 요소를 제한한 기본 Markdown 미리보기와 입력을 보존하는 충돌 안내를 제공한다. 조직 감사 조회는 owner/admin용 최소 API, 인증 감사는 운영자 절차로 제한한다.
-- **계약:** [멤버·감사 API 계약](members-api.md)과 [인증 감사 접근 절차](../docs/operations/audit-access.md)를 작성했다. 검색 정렬·페이지 크기와 Markdown의 허용 요소·링크 정책을 반영한 별도 계약은 추가가 필요하다.
+- **계약:** [멤버·감사 API 계약](members-api.md), [검색·미리보기 계약](search-preview.md)과 [인증 감사 접근 절차](../docs/operations/audit-access.md)를 작성했다.
 - **검증:** 기존 역할과 지정 역할을 함께 검사해 비활성 admin 재활성화를 owner만 허용하고 admin의 admin 지정은 거부한다. 성공 감사 저장 실패 시 멤버 변경 롤백, 거부 기록 분리와 실패 보고, 다음 요청에 권한 변경 반영을 확인한다. `휴가`로 제목과 본문의 `연차 및 휴가 신청`을 각각 찾고 삭제 및 타 조직 결과를 제외한다. 검색의 대소문자·`%`·`_` 리터럴, 정렬 동률, 페이지 크기와 잘못된 offset/limit의 `400`을 확인한다. 충돌 시 미저장 입력과 Markdown·링크 안전성을 확인한다.
-- **완료 증거:** 멤버·감사는 격리 MySQL의 `pnpm exec vitest run --config vitest.mysql.config.ts tests/integration/mysql/documents.test.ts` 9개 통과 및 실제 API 브라우저 `pnpm test:e2e:documents` 1개 통과. 검색·미리보기 검증은 아직 필요하다.
+- **완료 증거:** 멤버·감사·검색은 격리 MySQL의 `pnpm exec vitest run --config vitest.mysql.config.ts tests/integration/mysql/documents.test.ts` 11개 통과, 미리보기는 `pnpm test:unit` 및 실제 API 브라우저 `pnpm test:e2e:documents` 통과. 원격 CI 결과는 확인하지 않았다.
 
 ### 6. 공용 배포
 

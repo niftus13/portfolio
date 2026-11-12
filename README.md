@@ -2,7 +2,7 @@
 
 This is a pnpm workspace organized around a verification loop: define expected behavior, implement it, then verify it with tests and evaluations. The API, web app, and MySQL database can run together with Docker Compose.
 
-The MVP is an organization-scoped workspace for sharing operational guides and FAQs, with tenant isolation, role-based access, and document history. Signup, session-based login, organization selection, core documents, categories, trash, version restoration and member management are implemented. Search and safe public-demo operations remain planned. See the [MVP specification](specs/multitenant-mvp.md) and [implementation checklist](specs/multitenant-mvp-checklist.md).
+The MVP is an organization-scoped workspace for sharing operational guides and FAQs, with tenant isolation, role-based access, document history, literal search and safe Markdown preview. Safe public-demo operations remain planned. See the [MVP specification](specs/multitenant-mvp.md) and [implementation checklist](specs/multitenant-mvp-checklist.md).
 
 ## Repository layout
 

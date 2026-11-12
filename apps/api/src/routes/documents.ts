@@ -148,6 +148,51 @@ export function createDocumentRouter(
       organizations: await documents.organizations(await user(request)),
     });
   });
+  router.get("/orgs/:slug/search", async (request, response) => {
+    const userId = await user(request);
+    const params = request.query;
+    if (
+      Object.keys(params).some(
+        (key) => key !== "q" && key !== "offset" && key !== "limit",
+      ) ||
+      typeof params.q !== "string" ||
+      !params.q ||
+      Array.from(params.q).length > 255 ||
+      /[\uD800-\uDFFF]/u.test(params.q) ||
+      containsControlCharacters(params.q)
+    ) {
+      throw new AuthError(400, "Invalid input");
+    }
+    const offsetValue = params.offset ?? "0";
+    const limitValue = params.limit ?? "20";
+    if (
+      typeof offsetValue !== "string" ||
+      !/^(0|[1-9][0-9]*)$/.test(offsetValue) ||
+      typeof limitValue !== "string" ||
+      !/^[1-9][0-9]*$/.test(limitValue)
+    ) {
+      throw new AuthError(400, "Invalid input");
+    }
+    const offset = Number(offsetValue);
+    const limit = Number(limitValue);
+    if (
+      !Number.isSafeInteger(offset) ||
+      !Number.isSafeInteger(limit) ||
+      limit > 100
+    )
+      throw new AuthError(400, "Invalid input");
+    response.json({
+      documents: await documents.search(
+        userId,
+        slug(request.params.slug),
+        params.q,
+        limit,
+        offset,
+      ),
+      offset,
+      limit,
+    });
+  });
   router.get("/orgs/:slug/documents", async (request, response) => {
     const userId = await user(request);
     response.json({

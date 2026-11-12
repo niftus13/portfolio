@@ -8,4 +8,5 @@ Store behavior-focused specifications here. Each spec should state the problem, 
 - [Organization and document API contract](documents-api.md) — checkpoint 3 document and version behavior.
 - [Categories and recovery API contract](recovery-api.md) — category, trash, and version restoration behavior.
 - [Membership and audit API contract](members-api.md) — role changes, tenant access, and audit atomicity.
+- [Search and preview contract](search-preview.md) — literal search, pagination, and safe Markdown rendering.
 - [Multi-tenant MVP implementation checklist](multitenant-mvp-checklist.md) — policy, contract, implementation, and verification status.

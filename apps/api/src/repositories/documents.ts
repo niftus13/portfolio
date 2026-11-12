@@ -99,6 +99,23 @@ export class DocumentRepository {
     return rows;
   }
 
+  async search(
+    tenantId: string,
+    query: string,
+    limit: number,
+    offset: number,
+  ): Promise<DocumentRow[]> {
+    const [rows] = await this.pool.execute<DocumentRow[]>(
+      `SELECT ${documentFields} FROM documents
+       WHERE tenant_id = ? AND deleted_at IS NULL
+         AND (LOCATE(CAST(? AS BINARY), CAST(title AS BINARY)) > 0
+           OR LOCATE(CAST(? AS BINARY), CAST(content_md AS BINARY)) > 0)
+       ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`,
+      [tenantId, query, query, limit, offset],
+    );
+    return rows;
+  }
+
   async document(
     tenantId: string,
     id: string,
