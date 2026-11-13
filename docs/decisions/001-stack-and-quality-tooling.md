@@ -12,7 +12,6 @@ The repository is a growing application monorepo. Its directories and agent inst
 - Use Node.js 24 LTS (24.15 or newer) and pnpm 10.30.0 for the workspace.
 - Implement `apps/api/` in TypeScript with Express 5 and MySQL 8.4 LTS. Use `mysql2` connection pools and explicit SQL; defer an ORM until domain schemas and migration requirements are known.
 - Implement `apps/webs/` in TypeScript with Nuxt 4 and Vue 3. The existing `webs` directory name is retained.
-- Put framework-independent shared TypeScript code in `packages/shared/`.
 - Run the web app, API, and MySQL in Docker Compose. Keep database credentials in an untracked `.env` file for local development; Compose fallback credentials are development-only.
 - Use ESLint 10 with `typescript-eslint` and `eslint-plugin-vue`; use Prettier 3 for formatting.
 - Use Vitest 5 for unit tests (`tests/unit/`), integration tests (`tests/integration/`), and deterministic regression evaluations (`evals/cases/*.eval.test.ts`).
@@ -21,7 +20,7 @@ The repository is a growing application monorepo. Its directories and agent inst
 
 ## Verification contract
 
-- `pnpm lint`, `pnpm format:check`, and `pnpm typecheck` are workspace-level checks. Type checking delegates to the API's TypeScript compiler and Nuxt's type checker, then checks shared code and harness configuration.
+- `pnpm lint`, `pnpm format:check`, and `pnpm typecheck` are workspace-level checks. Type checking delegates to the API's TypeScript compiler and Nuxt's type checker, then checks test and tooling configuration.
 - `pnpm test` runs unit and integration tests; `pnpm eval` runs evaluation cases independently.
 - `pnpm verify` runs formatting, lint, type-check, unit/integration tests, and evaluations.
 - `pnpm test:e2e` is an explicit browser check. Playwright starts its own Nuxt server and API fixture on ports 3000 and 4001; Chromium and its system libraries must be installed. Occupied ports cause a failure instead of reusing another service.
@@ -30,4 +29,4 @@ The repository is a growing application monorepo. Its directories and agent inst
 
 ## Consequences
 
-Path-specific Copilot instructions and test runner globs must use the repository's actual `apps/webs/`, `tests/`, and `evals/cases/` paths. Root checks can validate shared tooling immediately; app-specific commands and runtime dependencies are added with each app's first implementation.
+Test runner globs must use the repository's actual `apps/webs/`, `tests/`, and `evals/cases/` paths. Root checks can validate shared tooling immediately; app-specific commands and runtime dependencies are added with each app's first implementation.

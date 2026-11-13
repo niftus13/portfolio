@@ -13,7 +13,7 @@ When multiple organizations use the same service, they must not be able to acces
 - Isolating organizational data and operations using active memberships and roles.
 - Saving document changes together with version history and notifying users of edit conflicts.
 - Verifying isolation, failure paths and user flows against real MySQL, API and browser instances.
-- Maintaining guidance and evaluation cases for a specification → implementation → testing loop.
+- Maintaining evaluation cases for a specification → implementation → testing loop.
 
 Organization creation, invitations, attachments and real-time collaboration are outside the MVP. See the [MVP specification](specs/multitenant-mvp.md) for policies and the [implementation checklist](specs/multitenant-mvp-checklist.md) for progress.
 
@@ -43,7 +43,7 @@ All four roles can read documents; only owner, admin and editor can create or ed
 | Quality            | Vitest, Playwright, ESLint, Prettier  | Separate unit, integration, real-browser and static checks by purpose                      |
 | Package management | pnpm workspace                        | Manage app and verification dependencies and commands in one repository                    |
 
-See the [stack decision](docs/decisions/001-stack-and-quality-tooling.md) for details and versions. `packages/shared/` is reserved for framework-independent code and is not yet a separate package.
+See the [stack decision](docs/decisions/001-stack-and-quality-tooling.md) for details and versions.
 
 ## System Architecture
 
@@ -196,12 +196,11 @@ The priority is not feature count, but **explaining and verifying tenant isolati
 
 ## Repository Layout
 
-| Path                     | Purpose                                                                                  |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| `apps/api/`              | Express API, SQL migrations and database operations                                      |
-| `apps/webs/`             | Nuxt web UI and server proxy                                                             |
-| `packages/shared/`       | Reserved space for framework-independent shared code                                     |
-| `specs/`                 | Feature policies, API contracts and implementation checklist                             |
-| `docs/`                  | Architecture, technical decisions, operations and [harness reuse](docs/harness-reuse.md) |
-| `tests/`, `evals/cases/` | Purpose-specific tests and deterministic regression evaluations                          |
-| `.github/`               | CI and coding-agent instructions and skills                                              |
+| Path                     | Purpose                                                         |
+| ------------------------ | --------------------------------------------------------------- |
+| `apps/api/`              | Express API, SQL migrations and database operations             |
+| `apps/webs/`             | Nuxt web UI and server proxy                                    |
+| `specs/`                 | Feature policies, API contracts and implementation checklist    |
+| `docs/`                  | Architecture, technical decisions and operations                |
+| `tests/`, `evals/cases/` | Purpose-specific tests and deterministic regression evaluations |
+| `.github/`               | CI configuration                                                |
