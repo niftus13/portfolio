@@ -44,6 +44,17 @@ Set `SEED_DEMO_PASSWORD` to a password of 12–128 characters, then run `pnpm db
 
 The seed is a one-time transaction. A rerun leaves existing records and passwords unchanged; it does not reset demo data. Name collisions fail the transaction instead of overwriting existing accounts or organizations. Initial seed and demo reset are separate operations; demo reset is not implemented.
 
+For a separate role demonstration, set `SEED_DEMO_PASSWORD` to a password of 12–128 characters and run `pnpm db:seed:roles` with `DB_*` pointing at the intended migrated database. It creates the `demo-roles` organization and the following demo-only accounts, all using the supplied password:
+
+| Role   | Email                       |
+| ------ | --------------------------- |
+| Owner  | `owner@roles.demo.invalid`  |
+| Admin  | `admin@roles.demo.invalid`  |
+| Editor | `editor@roles.demo.invalid` |
+| Viewer | `viewer@roles.demo.invalid` |
+
+It creates ten example documents attributed to each account, shared by all four roles, with an initial version each. Viewer-attributed fixtures do not grant viewers write access. The seed runs once, does not overwrite existing records or passwords, and rolls back on name collisions. It does not reset data on rerun. Keep the password out of source control and shell history; do not expose this seed publicly while demo reset and deployment protections remain incomplete.
+
 For complete database backups and recovery, see the [operator procedure](../../docs/operations/backup-restore.md).
 
 ## Audit retention

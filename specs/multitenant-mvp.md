@@ -10,6 +10,7 @@ The source is the [multi-tenant MVP document](https://app.notion.com/p/4152d703a
 - Seeded organizations have members with an `owner`, `admin`, `editor`, or `viewer` role. A user can have different roles in different organizations.
 - Members can manage guides and FAQs with categories, Markdown, search, version history, and a trash.
 - Organization creation, invitations, new memberships, ownership transfer, permanent deletion, attachments, and real-time collaboration are outside the MVP.
+- An optional, separate role-demo seed creates one demo organization with one fixed account for each role and ten shared example documents attributed to each account. Every document has an initial version. Viewer-attributed documents are seed fixtures and do not grant viewers document creation permission. The seed does not overwrite existing data or credentials and is not a reset.
 
 ## Workspace interface
 
